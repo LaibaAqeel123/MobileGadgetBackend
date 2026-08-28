@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MobileGadgets.Application.Dtos;
 using MobileGadgets.Application.Interfaces;
@@ -6,6 +7,7 @@ namespace MobileGadgets.API.Controllers;
 
 [ApiController]
 [Route("api/heromodels")]
+[Authorize]
 public class HeroModelsController : ControllerBase
 {
     private readonly IHeroModelService _heroModelService;
@@ -26,6 +28,7 @@ public class HeroModelsController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Create([FromBody] CreateHeroModelRequest request)
     {
         var created = await _heroModelService.CreateAsync(request);
@@ -33,6 +36,7 @@ public class HeroModelsController : ControllerBase
     }
 
     [HttpPut("{id:int}")]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Update(int id, [FromBody] UpdateHeroModelRequest request)
     {
         var updated = await _heroModelService.UpdateAsync(id, request);
@@ -40,6 +44,7 @@ public class HeroModelsController : ControllerBase
     }
 
     [HttpDelete("{id:int}")]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Delete(int id)
     {
         var deleted = await _heroModelService.DeleteAsync(id);

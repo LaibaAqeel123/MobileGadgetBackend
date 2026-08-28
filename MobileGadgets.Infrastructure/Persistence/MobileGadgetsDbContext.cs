@@ -13,10 +13,15 @@ public class MobileGadgetsDbContext : DbContext
     public DbSet<HeroModel> HeroModels => Set<HeroModel>();
     public DbSet<HeroGeneration> HeroGenerations => Set<HeroGeneration>();
     public DbSet<Scene> Scenes => Set<Scene>();
+    public DbSet<User> Users => Set<User>();
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
+        modelBuilder.Entity<User>().HasIndex(u => u.Email).IsUnique();
+        modelBuilder.Entity<RefreshToken>().HasIndex(t => t.TokenHash).IsUnique();
 
         modelBuilder.Entity<Scene>().HasData(
             new Scene

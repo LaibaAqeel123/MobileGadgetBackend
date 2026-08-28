@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MobileGadgets.Application.Interfaces;
 
@@ -5,6 +6,7 @@ namespace MobileGadgets.API.Controllers;
 
 [ApiController]
 [Route("api/scenes")]
+[Authorize]
 public class ScenesController : ControllerBase
 {
     private readonly ISceneService _sceneService;

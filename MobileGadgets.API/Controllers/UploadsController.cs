@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MobileGadgets.Application.Interfaces;
 
@@ -5,6 +6,7 @@ namespace MobileGadgets.API.Controllers;
 
 [ApiController]
 [Route("api/uploads")]
+[Authorize(Roles = "Admin")]
 public class UploadsController : ControllerBase
 {
     private readonly IImageStorageService _imageStorage;

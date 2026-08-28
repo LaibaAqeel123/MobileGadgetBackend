@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using MobileGadgets.Infrastructure.Persistence;
 
@@ -11,9 +12,11 @@ using MobileGadgets.Infrastructure.Persistence;
 namespace MobileGadgets.Infrastructure.Migrations
 {
     [DbContext(typeof(MobileGadgetsDbContext))]
-    partial class MobileGadgetsDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260828151328_AddAuth")]
+    partial class AddAuth
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

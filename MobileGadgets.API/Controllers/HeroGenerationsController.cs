@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MobileGadgets.Application.Interfaces;
 
@@ -5,6 +6,7 @@ namespace MobileGadgets.API.Controllers;
 
 [ApiController]
 [Route("api/herogenerations")]
+[Authorize]
 public class HeroGenerationsController : ControllerBase
 {
     private readonly IHeroGenerationService _generationService;
