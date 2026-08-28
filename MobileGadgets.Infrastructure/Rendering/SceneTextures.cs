@@ -1,15 +1,13 @@
 namespace MobileGadgets.Infrastructure.Rendering;
 
-/// <summary>Procedural floor/wall textures — a gradient + a light grid, not hand-painted.
-/// Warped into the 3D scene through the same camera as the phone, so the grid lines
-/// correctly converge into the distance instead of being a fake flat gradient.</summary>
+/// <summary>Floor/wall textures — a gradient + a light grid, not hand-painted. Warped into the
+/// 3D scene through the same camera as the phone, so the grid lines correctly converge into
+/// the distance instead of being a fake flat gradient. Colours come from the active Scene.</summary>
 public static class SceneTextures
 {
-    public static RgbaImage FloorTexture(int w, int h)
+    public static RgbaImage FloorTexture(int w, int h, (byte r, byte g, byte b) top, (byte r, byte g, byte b) bottom)
     {
         var img = new RgbaImage(w, h);
-        (byte r, byte g, byte b) top = (0x33, 0x33, 0x36);
-        (byte r, byte g, byte b) bottom = (0x11, 0x11, 0x13);
 
         for (var y = 0; y < h; y++)
         {
@@ -27,27 +25,26 @@ public static class SceneTextures
             }
         }
 
-        // Vertical grid lines (9, every 1/8 of width), faint white.
+        // Vertical grid lines (9, every 1/8 of width), faint dark-on-light or light-on-dark
+        // depending on which reads better against this scene's floor tone.
+        var lineIsLight = (top.r + top.g + top.b) < 384; // dark floor -> light grid lines
         for (var i = 0; i <= 8; i++)
         {
             var x = (int)Math.Round(i * w / 8.0);
-            DrawVerticalLine(img, x, 0.05);
+            DrawVerticalLine(img, x, 0.05, lineIsLight);
         }
-        // Horizontal grid lines.
         for (var i = 0; i <= 8; i++)
         {
             var y = (int)Math.Round(i * h / 8.0);
-            DrawHorizontalLine(img, y, 0.04);
+            DrawHorizontalLine(img, y, 0.04, lineIsLight);
         }
 
         return img;
     }
 
-    public static RgbaImage WallTexture(int w, int h)
+    public static RgbaImage WallTexture(int w, int h, (byte r, byte g, byte b) top, (byte r, byte g, byte b) bottom)
     {
         var img = new RgbaImage(w, h);
-        (byte r, byte g, byte b) top = (0x3d, 0x3d, 0x40);
-        (byte r, byte g, byte b) bottom = (0x28, 0x28, 0x2b);
 
         for (var y = 0; y < h; y++)
         {
@@ -68,34 +65,29 @@ public static class SceneTextures
         return img;
     }
 
-    private static void DrawVerticalLine(RgbaImage img, int x, double opacity)
+    private static void DrawVerticalLine(RgbaImage img, int x, double opacity, bool lineIsLight)
     {
         for (var t = -1; t <= 1; t++)
         {
             var xx = x + t;
             if (xx < 0 || xx >= img.Width) continue;
             for (var y = 0; y < img.Height; y++)
-            {
-                var idx = (y * img.Width + xx) * 4;
-                BlendWhite(img, idx, opacity);
-            }
+                BlendLine(img, (y * img.Width + xx) * 4, opacity, lineIsLight);
         }
     }
 
-    private static void DrawHorizontalLine(RgbaImage img, int y, double opacity)
+    private static void DrawHorizontalLine(RgbaImage img, int y, double opacity, bool lineIsLight)
     {
         if (y < 0 || y >= img.Height) return;
         for (var x = 0; x < img.Width; x++)
-        {
-            var idx = (y * img.Width + x) * 4;
-            BlendWhite(img, idx, opacity);
-        }
+            BlendLine(img, (y * img.Width + x) * 4, opacity, lineIsLight);
     }
 
-    private static void BlendWhite(RgbaImage img, int idx, double opacity)
+    private static void BlendLine(RgbaImage img, int idx, double opacity, bool lineIsLight)
     {
-        img.Data[idx] = (byte)Math.Round(255 * opacity + img.Data[idx] * (1 - opacity));
-        img.Data[idx + 1] = (byte)Math.Round(255 * opacity + img.Data[idx + 1] * (1 - opacity));
-        img.Data[idx + 2] = (byte)Math.Round(255 * opacity + img.Data[idx + 2] * (1 - opacity));
+        var target = lineIsLight ? 255 : 0;
+        img.Data[idx] = (byte)Math.Round(target * opacity + img.Data[idx] * (1 - opacity));
+        img.Data[idx + 1] = (byte)Math.Round(target * opacity + img.Data[idx + 1] * (1 - opacity));
+        img.Data[idx + 2] = (byte)Math.Round(target * opacity + img.Data[idx + 2] * (1 - opacity));
     }
 }

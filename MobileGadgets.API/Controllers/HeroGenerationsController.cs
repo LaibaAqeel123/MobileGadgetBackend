@@ -26,19 +26,19 @@ public class HeroGenerationsController : ControllerBase
 
     [HttpPost]
     [RequestSizeLimit(50_000_000)]
-    public async Task<IActionResult> Generate([FromForm] int heroModelId, IFormFile design)
+    public async Task<IActionResult> Generate([FromForm] int heroModelId, [FromForm] int? sceneId, IFormFile design)
     {
         if (design.Length == 0) return BadRequest(new { error = "No design file provided." });
 
         try
         {
             await using var designStream = design.OpenReadStream();
-            var result = await _generationService.GenerateAsync(heroModelId, designStream, design.FileName);
+            var result = await _generationService.GenerateAsync(heroModelId, designStream, design.FileName, sceneId);
             return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
         }
-        catch (KeyNotFoundException)
+        catch (KeyNotFoundException ex)
         {
-            return NotFound(new { error = $"HeroModel {heroModelId} not found." });
+            return NotFound(new { error = ex.Message });
         }
     }
 }

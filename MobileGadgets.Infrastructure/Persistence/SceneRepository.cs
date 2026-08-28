@@ -1,0 +1,24 @@
+using Microsoft.EntityFrameworkCore;
+using MobileGadgets.Application.Interfaces;
+using MobileGadgets.Domain;
+
+namespace MobileGadgets.Infrastructure.Persistence;
+
+public class SceneRepository : ISceneRepository
+{
+    private readonly MobileGadgetsDbContext _db;
+
+    public SceneRepository(MobileGadgetsDbContext db)
+    {
+        _db = db;
+    }
+
+    public async Task<List<Scene>> GetAllAsync() =>
+        await _db.Scenes.OrderBy(s => s.Id).ToListAsync();
+
+    public async Task<Scene?> GetByIdAsync(int id) =>
+        await _db.Scenes.FindAsync(id);
+
+    public async Task<Scene> GetDefaultAsync() =>
+        await _db.Scenes.FirstAsync(s => s.IsDefault);
+}

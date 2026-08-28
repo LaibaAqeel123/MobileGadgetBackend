@@ -1,10 +1,11 @@
 using MobileGadgets.Application.Interfaces;
+using MobileGadgets.Domain;
 
 namespace MobileGadgets.Infrastructure.Rendering;
 
 public class HeroImageRenderer : IHeroImageRenderer
 {
-    public async Task<byte[]> RenderAsync(Stream baseImage, Stream designMask, Stream cameraMask, Stream overlay, Stream design)
+    public async Task<byte[]> RenderAsync(Stream baseImage, Stream designMask, Stream cameraMask, Stream overlay, Stream design, Scene scene)
     {
         var baseImg = await RgbaImage.LoadAsync(baseImage);
         var designMaskImg = await RgbaImage.LoadAsync(designMask);
@@ -13,8 +14,8 @@ public class HeroImageRenderer : IHeroImageRenderer
         var designImg = await RgbaImage.LoadCoverFitAsync(design, baseImg.Width, baseImg.Height);
 
         var flat = FlattenStage.Flatten(baseImg, designMaskImg, cameraMaskImg, overlayImg, designImg);
-        var scene = SceneWarpStage.RenderScene(flat);
+        var sceneImage = SceneWarpStage.RenderScene(flat, scene);
 
-        return await scene.ToPngBytesAsync();
+        return await sceneImage.ToPngBytesAsync();
     }
 }

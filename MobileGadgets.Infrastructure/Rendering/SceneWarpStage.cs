@@ -1,25 +1,28 @@
+using MobileGadgets.Domain;
+
 namespace MobileGadgets.Infrastructure.Rendering;
 
 /// <summary>Stage B: places the flat composite into a 3D-looking studio scene — wall, floor,
 /// correct lean/tilt, shadow, floor reflection. Port of prototype_scene_warp.js's shared-camera
 /// approach: one virtual camera, everything (floor, wall, phone) projected through it, so
 /// nothing looks like a pasted layer. Generic over any flat composite's size — no phone-specific
-/// values; the phone's own aspect ratio is the only per-model input.</summary>
+/// values; the phone's own aspect ratio is the only per-model input. Camera pose and all colours
+/// come from the given Scene, so a different Scene changes the look with zero code changes.</summary>
 public static class SceneWarpStage
 {
-    public static RgbaImage RenderScene(RgbaImage flat, int outW = 1500, int outH = 1500)
+    public static RgbaImage RenderScene(RgbaImage flat, Scene scene, int outW = 1500, int outH = 1500)
     {
         var w = flat.Width;
         var h = flat.Height;
 
-        var cam = new SceneCamera(camY: 1.15, camZ: -2.6, pitch: 13 * Math.PI / 180, focal: 1650);
+        var cam = new SceneCamera(camY: scene.CamY, camZ: scene.CamZ, pitch: scene.PitchDegrees * Math.PI / 180, focal: scene.Focal);
 
         // World units: phone is 1.0 unit wide, aspect-correct height.
         const double phoneWorldW = 1.0;
         var phoneWorldH = (double)h / w * phoneWorldW;
         var baseCenter = (x: -0.05, z: 0.55);
-        var lean = 10 * Math.PI / 180; // leaning back toward the wall
-        var yaw = -22 * Math.PI / 180; // turned for the 3/4 view
+        var lean = scene.LeanDegrees * Math.PI / 180; // leaning back toward the wall
+        var yaw = scene.YawDegrees * Math.PI / 180; // turned for the 3/4 view
 
         var rightVec = (x: Math.Cos(yaw), z: Math.Sin(yaw));
         var upVec = (y: Math.Cos(lean), z: Math.Sin(lean));
@@ -48,27 +51,29 @@ public static class SceneWarpStage
             return (proj.Value.x * scale + offX, proj.Value.y * scale + offY);
         }
 
-        // ---- scene canvas, pre-filled with a dark gradient ----
-        var scene = new RgbaImage(outW, outH);
+        // ---- scene canvas, pre-filled with the scene's background gradient ----
+        var bgTop = ColorUtils.ParseHex(scene.BackgroundTopColor);
+        var bgBottom = ColorUtils.ParseHex(scene.BackgroundBottomColor);
+        var sceneImg = new RgbaImage(outW, outH);
         for (var y = 0; y < outH; y++)
         {
             var t = (double)y / outH;
-            byte r = (byte)Math.Round(0x2c + (0x14 - 0x2c) * t);
-            byte g = (byte)Math.Round(0x2c + (0x14 - 0x2c) * t);
-            byte b = (byte)Math.Round(0x2f + (0x16 - 0x2f) * t);
+            byte r = (byte)Math.Round(bgTop.r + (bgBottom.r - bgTop.r) * t);
+            byte g = (byte)Math.Round(bgTop.g + (bgBottom.g - bgTop.g) * t);
+            byte b = (byte)Math.Round(bgTop.b + (bgBottom.b - bgTop.b) * t);
             for (var x = 0; x < outW; x++)
             {
                 var idx = (y * outW + x) * 4;
-                scene.Data[idx] = r;
-                scene.Data[idx + 1] = g;
-                scene.Data[idx + 2] = b;
-                scene.Data[idx + 3] = 255;
+                sceneImg.Data[idx] = r;
+                sceneImg.Data[idx + 1] = g;
+                sceneImg.Data[idx + 2] = b;
+                sceneImg.Data[idx + 3] = 255;
             }
         }
 
         // ---- floor: near edge close to camera, far edge receding well past the wall ----
         const int floorTexSize = 900;
-        var floorTex = SceneTextures.FloorTexture(floorTexSize, floorTexSize);
+        var floorTex = SceneTextures.FloorTexture(floorTexSize, floorTexSize, ColorUtils.ParseHex(scene.FloorTopColor), ColorUtils.ParseHex(scene.FloorBottomColor));
         const double floorHalfW = 7, floorNearZ = -0.6, floorFarZ = 6;
         (double x, double y, double z)[] floorCorners3d =
         [
@@ -79,11 +84,11 @@ public static class SceneWarpStage
         ];
         var floorScreen = floorCorners3d.Select(ToScreen).ToArray();
         if (floorScreen.All(p => p is not null))
-            PixelOps.WarpInto(scene, floorTex, floorScreen.Select(p => p!.Value).ToArray());
+            PixelOps.WarpInto(sceneImg, floorTex, floorScreen.Select(p => p!.Value).ToArray());
 
         // ---- wall: simple vertical gradient ----
         const int wallTexW = 40, wallTexH = 900;
-        var wallTex = SceneTextures.WallTexture(wallTexW, wallTexH);
+        var wallTex = SceneTextures.WallTexture(wallTexW, wallTexH, ColorUtils.ParseHex(scene.WallTopColor), ColorUtils.ParseHex(scene.WallBottomColor));
         var wallZ = floorFarZ * 0.62;
         const double wallHalfW = 7, wallH = 6;
         (double x, double y, double z)[] wallCorners3d =
@@ -95,10 +100,10 @@ public static class SceneWarpStage
         ];
         var wallScreen = wallCorners3d.Select(ToScreen).ToArray();
         if (wallScreen.All(p => p is not null))
-            PixelOps.WarpInto(scene, wallTex, wallScreen.Select(p => p!.Value).ToArray());
+            PixelOps.WarpInto(sceneImg, wallTex, wallScreen.Select(p => p!.Value).ToArray());
         // Redraw the floor once more so it wins in front of the wall at the horizon seam.
         if (floorScreen.All(p => p is not null))
-            PixelOps.WarpInto(scene, floorTex, floorScreen.Select(p => p!.Value).ToArray());
+            PixelOps.WarpInto(sceneImg, floorTex, floorScreen.Select(p => p!.Value).ToArray());
 
         // ---- contact shadow, anchored at the phone's real base line ----
         var baseScreenL = ToScreen(baseLeft);
@@ -112,7 +117,7 @@ public static class SceneWarpStage
             var shadow = new RgbaImage(outW, outH);
             PixelOps.FillEllipse(shadow, midX, midY + 4, shadowW * 0.62, shadowW * 0.1, 0, 0, 0, 0.55);
             shadow.GaussianBlur(14);
-            PixelOps.CompositeOver(scene, shadow);
+            PixelOps.CompositeOver(sceneImg, shadow);
         }
 
         // ---- the phone itself, warped from the flat composite into its leaned quad ----
@@ -134,7 +139,7 @@ public static class SceneWarpStage
                 shaded.Data[idx + 2] = (byte)Math.Clamp(Math.Round(shaded.Data[idx + 2] * mult), 0, 255);
             }
 
-            PixelOps.WarpInto(scene, shaded, phoneCorners);
+            PixelOps.WarpInto(sceneImg, shaded, phoneCorners);
 
             // ---- floor reflection: the phone mirrored across its own base line, faded + blurred ----
             var mirroredTopLeft = (x: baseLeft.x, y: -upVec.y * phoneWorldH * 0.9, z: baseLeft.z - upVec.z * phoneWorldH * 0.9);
@@ -149,13 +154,13 @@ public static class SceneWarpStage
                 var reflBuf = new RgbaImage(outW, outH);
                 PixelOps.WarpInto(reflBuf, faded, reflectionScreen.Select(p => p!.Value).ToArray());
                 reflBuf.GaussianBlur(3);
-                PixelOps.CompositeOver(scene, reflBuf);
+                PixelOps.CompositeOver(sceneImg, reflBuf);
 
                 // Redraw the phone on top of its own reflection edge for a clean contact line.
-                PixelOps.WarpInto(scene, shaded, phoneCorners);
+                PixelOps.WarpInto(sceneImg, shaded, phoneCorners);
             }
         }
 
-        return scene;
+        return sceneImg;
     }
 }

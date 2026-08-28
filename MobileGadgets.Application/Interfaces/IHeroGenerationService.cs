@@ -9,6 +9,7 @@ public interface IHeroGenerationService
 
     /// <summary>Runs the full generate flow: flattens + scene-warps the HeroModel's layers with
     /// the uploaded design, stores both the design and the full-resolution output permanently,
-    /// and records a HeroGeneration. Throws KeyNotFoundException if heroModelId doesn't exist.</summary>
-    Task<HeroGenerationDto> GenerateAsync(int heroModelId, Stream designContent, string designFileName);
+    /// and records a HeroGeneration. sceneId null uses the default Scene. Throws
+    /// KeyNotFoundException if heroModelId or sceneId doesn't exist.</summary>
+    Task<HeroGenerationDto> GenerateAsync(int heroModelId, Stream designContent, string designFileName, int? sceneId);
 }
