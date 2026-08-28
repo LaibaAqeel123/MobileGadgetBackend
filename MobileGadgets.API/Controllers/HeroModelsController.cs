@@ -9,14 +9,10 @@ namespace MobileGadgets.API.Controllers;
 public class HeroModelsController : ControllerBase
 {
     private readonly IHeroModelService _heroModelService;
-    private readonly IHeroImageRenderer _renderer;
-    private readonly IImageStorageService _imageStorage;
 
-    public HeroModelsController(IHeroModelService heroModelService, IHeroImageRenderer renderer, IImageStorageService imageStorage)
+    public HeroModelsController(IHeroModelService heroModelService)
     {
         _heroModelService = heroModelService;
-        _renderer = renderer;
-        _imageStorage = imageStorage;
     }
 
     [HttpGet]
@@ -48,25 +44,5 @@ public class HeroModelsController : ControllerBase
     {
         var deleted = await _heroModelService.DeleteAsync(id);
         return deleted ? NoContent() : NotFound();
-    }
-
-    /// <summary>Sprint 2 engine verification only — runs the renderer against a stored HeroModel
-    /// and returns the PNG directly, no persistence. Sprint 3 replaces this with the real,
-    /// permanent Generate flow (HeroGeneration record + stored output).</summary>
-    [HttpPost("{id:int}/render-preview")]
-    [RequestSizeLimit(50_000_000)]
-    public async Task<IActionResult> RenderPreview(int id, IFormFile design)
-    {
-        var model = await _heroModelService.GetByIdAsync(id);
-        if (model is null) return NotFound();
-
-        using var baseStream = _imageStorage.OpenRead(model.BaseImageUrl);
-        using var designMaskStream = _imageStorage.OpenRead(model.DesignMaskImageUrl);
-        using var cameraMaskStream = _imageStorage.OpenRead(model.CameraMaskImageUrl);
-        using var overlayStream = _imageStorage.OpenRead(model.OverlayImageUrl);
-        using var designStream = design.OpenReadStream();
-
-        var png = await _renderer.RenderAsync(baseStream, designMaskStream, cameraMaskStream, overlayStream, designStream);
-        return File(png, "image/png");
     }
 }

@@ -11,4 +11,5 @@ public class MobileGadgetsDbContext : DbContext
     }
 
     public DbSet<HeroModel> HeroModels => Set<HeroModel>();
+    public DbSet<HeroGeneration> HeroGenerations => Set<HeroGeneration>();
 }

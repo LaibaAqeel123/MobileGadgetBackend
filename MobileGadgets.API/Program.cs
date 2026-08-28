@@ -21,6 +21,8 @@ builder.Services.AddScoped<IImageStorageService, LocalImageStorageService>();
 builder.Services.AddScoped<IHeroModelRepository, HeroModelRepository>();
 builder.Services.AddScoped<IHeroModelService, HeroModelService>();
 builder.Services.AddScoped<IHeroImageRenderer, HeroImageRenderer>();
+builder.Services.AddScoped<IHeroGenerationRepository, HeroGenerationRepository>();
+builder.Services.AddScoped<IHeroGenerationService, HeroGenerationService>();
 
 const string CorsPolicy = "FrontendCors";
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
