@@ -40,9 +40,9 @@ public static class SceneWarpStage
         var rys = rawCorners.Select(p => p.y).ToArray();
         var phonePxW = rxs.Max() - rxs.Min();
         var phonePxH = rys.Max() - rys.Min();
-        var scale = Math.Min(outW * 0.5 / phonePxW, outH * 0.62 / phonePxH);
-        var offX = outW * 0.42 - (rxs.Max() + rxs.Min()) / 2 * scale;
-        var offY = outH * 0.42 - (rys.Max() + rys.Min()) / 2 * scale;
+        var scale = Math.Min(outW * 0.62 / phonePxW, outH * 0.76 / phonePxH);
+        var offX = outW * 0.44 - (rxs.Max() + rxs.Min()) / 2 * scale;
+        var offY = outH * 0.46 - (rys.Max() + rys.Min()) / 2 * scale;
 
         (double x, double y)? ToScreen((double x, double y, double z) p)
         {
@@ -115,8 +115,8 @@ public static class SceneWarpStage
             var shadowW = Math.Sqrt(Math.Pow(baseScreenR.Value.x - baseScreenL.Value.x, 2) + Math.Pow(baseScreenR.Value.y - baseScreenL.Value.y, 2));
 
             var shadow = new RgbaImage(outW, outH);
-            PixelOps.FillEllipse(shadow, midX, midY + 4, shadowW * 0.62, shadowW * 0.1, 0, 0, 0, 0.55);
-            shadow.GaussianBlur(14);
+            PixelOps.FillEllipse(shadow, midX, midY + 3, shadowW * 0.55, shadowW * 0.09, 0, 0, 0, 0.7);
+            shadow.GaussianBlur(9);
             PixelOps.CompositeOver(sceneImg, shadow);
         }
 
