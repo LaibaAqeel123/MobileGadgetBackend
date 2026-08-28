@@ -1,0 +1,12 @@
+bin/
+obj/
+
+appsettings.Development.json
+appsettings.*.local.json
+
+**/wwwroot/uploads/*
+!**/wwwroot/uploads/.gitkeep
+
+*.user
+.vs/
+*.log

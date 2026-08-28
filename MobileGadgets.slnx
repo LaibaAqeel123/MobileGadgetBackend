@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="MobileGadgets.API/MobileGadgets.API.csproj" />
+  <Project Path="MobileGadgets.Application/MobileGadgets.Application.csproj" />
+  <Project Path="MobileGadgets.Domain/MobileGadgets.Domain.csproj" />
+  <Project Path="MobileGadgets.Infrastructure/MobileGadgets.Infrastructure.csproj" />
+</Solution>
