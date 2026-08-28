@@ -31,4 +31,11 @@ public class LocalImageStorageService : IImageStorageService
         var fullPath = Path.Combine(_settings.LocalBasePath, fileName);
         if (File.Exists(fullPath)) File.Delete(fullPath);
     }
+
+    public Stream OpenRead(string url)
+    {
+        var fileName = url[(url.LastIndexOf('/') + 1)..];
+        var fullPath = Path.Combine(_settings.LocalBasePath, fileName);
+        return File.OpenRead(fullPath);
+    }
 }

@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using MobileGadgets.Application.Interfaces;
 using MobileGadgets.Application.Services;
 using MobileGadgets.Infrastructure.Persistence;
+using MobileGadgets.Infrastructure.Rendering;
 using MobileGadgets.Infrastructure.Storage;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -19,6 +20,7 @@ builder.Services.Configure<StorageSettings>(builder.Configuration.GetSection("St
 builder.Services.AddScoped<IImageStorageService, LocalImageStorageService>();
 builder.Services.AddScoped<IHeroModelRepository, HeroModelRepository>();
 builder.Services.AddScoped<IHeroModelService, HeroModelService>();
+builder.Services.AddScoped<IHeroImageRenderer, HeroImageRenderer>();
 
 const string CorsPolicy = "FrontendCors";
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
