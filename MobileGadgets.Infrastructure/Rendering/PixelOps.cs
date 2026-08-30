@@ -113,6 +113,52 @@ public static class PixelOps
         }
     }
 
+    /// <summary>Darkens toward the four corners only (a radial falloff from (cxFrac, cyFrac) as a
+    /// fraction of width/height) — draws the eye to the product, present in nearly every real
+    /// studio product photo. `innerFrac` is how far out (0-1, as a fraction of the distance to the
+    /// farthest corner) the darkening starts; `maxOpacity` is the darkening strength at the very
+    /// corners.</summary>
+    public static void ApplyVignette(RgbaImage img, double cxFrac, double cyFrac, double innerFrac, double maxOpacity)
+    {
+        int w = img.Width, h = img.Height;
+        var cx = w * cxFrac;
+        var cy = h * cyFrac;
+        var maxDist = Math.Sqrt(Math.Pow(Math.Max(cx, w - cx), 2) + Math.Pow(Math.Max(cy, h - cy), 2));
+
+        for (var y = 0; y < h; y++)
+        {
+            for (var x = 0; x < w; x++)
+            {
+                var dist = Math.Sqrt(Math.Pow(x - cx, 2) + Math.Pow(y - cy, 2)) / maxDist;
+                if (dist <= innerFrac) continue;
+                var opacity = Math.Min(1, (dist - innerFrac) / (1 - innerFrac)) * maxOpacity;
+                var idx = (y * w + x) * 4;
+                img.Data[idx] = (byte)Math.Round(img.Data[idx] * (1 - opacity));
+                img.Data[idx + 1] = (byte)Math.Round(img.Data[idx + 1] * (1 - opacity));
+                img.Data[idx + 2] = (byte)Math.Round(img.Data[idx + 2] * (1 - opacity));
+            }
+        }
+    }
+
+    /// <summary>Low-amplitude luminance noise, blended with Photoshop/CSS "overlay" math (same
+    /// blend used for the case's lighting map) — kills the "flat digital gradient" look far more
+    /// cheaply than any amount of extra shading detail.</summary>
+    public static void ApplyFilmGrain(RgbaImage img, double amplitude, Random rng)
+    {
+        for (var i = 0; i < img.Width * img.Height; i++)
+        {
+            var grain = Math.Clamp(128 + (rng.NextDouble() - 0.5) * 2 * amplitude, 0, 255);
+            var cs = grain / 255.0;
+            var idx = i * 4;
+            for (var c = 0; c < 3; c++)
+            {
+                var cb = img.Data[idx + c] / 255.0;
+                var blended = cb <= 0.5 ? 2 * cb * cs : 1 - 2 * (1 - cb) * (1 - cs);
+                img.Data[idx + c] = (byte)Math.Round(Math.Clamp(blended, 0, 1) * 255);
+            }
+        }
+    }
+
     /// <summary>Fills a soft-edged (antialiased) ellipse of the given color/opacity directly into an RGBA buffer.</summary>
     public static void FillEllipse(RgbaImage img, double cx, double cy, double rx, double ry, byte r, byte g, byte b, double opacity)
     {
