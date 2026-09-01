@@ -55,11 +55,10 @@ public class HeroGenerationService : IHeroGenerationService
         designBuffer.Position = 0;
 
         using var baseStream = _imageStorage.OpenRead(model.BaseImageUrl);
-        using var designMaskStream = _imageStorage.OpenRead(model.DesignMaskImageUrl);
         using var cameraMaskStream = _imageStorage.OpenRead(model.CameraMaskImageUrl);
         using var overlayStream = _imageStorage.OpenRead(model.OverlayImageUrl);
 
-        var png = await _renderer.RenderAsync(baseStream, designMaskStream, cameraMaskStream, overlayStream, designBuffer, scene);
+        var png = await _renderer.RenderAsync(baseStream, cameraMaskStream, overlayStream, designBuffer, scene);
 
         await using var outputStream = new MemoryStream(png);
         var outputUrl = await _imageStorage.SaveImageAsync(outputStream, "hero.png");

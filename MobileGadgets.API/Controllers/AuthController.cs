@@ -12,7 +12,7 @@ public class LoginRequest
 }
 
 [ApiController]
-[Route("api/auth")]
+[Route("auth")]
 public class AuthController : ControllerBase
 {
     private const string RefreshCookieName = "refreshToken";

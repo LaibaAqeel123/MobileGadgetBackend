@@ -5,7 +5,7 @@ using MobileGadgets.Application.Interfaces;
 namespace MobileGadgets.API.Controllers;
 
 [ApiController]
-[Route("api/scenes")]
+[Route("scenes")]
 [Authorize]
 public class ScenesController : ControllerBase
 {

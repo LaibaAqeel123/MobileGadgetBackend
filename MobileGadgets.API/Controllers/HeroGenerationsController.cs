@@ -5,7 +5,7 @@ using MobileGadgets.Application.Interfaces;
 namespace MobileGadgets.API.Controllers;
 
 [ApiController]
-[Route("api/herogenerations")]
+[Route("herogenerations")]
 [Authorize]
 public class HeroGenerationsController : ControllerBase
 {

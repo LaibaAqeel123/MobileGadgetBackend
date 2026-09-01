@@ -6,7 +6,7 @@ using MobileGadgets.Application.Interfaces;
 namespace MobileGadgets.API.Controllers;
 
 [ApiController]
-[Route("api/users")]
+[Route("users")]
 [Authorize(Roles = "Admin")]
 public class UsersController : ControllerBase
 {

@@ -5,7 +5,7 @@ using MobileGadgets.Application.Interfaces;
 namespace MobileGadgets.API.Controllers;
 
 [ApiController]
-[Route("api/uploads")]
+[Route("uploads")]
 [Authorize(Roles = "Admin")]
 public class UploadsController : ControllerBase
 {
