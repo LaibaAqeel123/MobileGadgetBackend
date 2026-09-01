@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using MobileGadgets.Application.Dtos;
 using MobileGadgets.Application.Interfaces;
 
 namespace MobileGadgets.API.Controllers;
@@ -18,4 +19,17 @@ public class ScenesController : ControllerBase
 
     [HttpGet]
     public async Task<IActionResult> GetAll() => Ok(await _sceneService.GetAllAsync());
+
+    [HttpPost]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> Create([FromBody] CreateSceneRequest request) =>
+        Ok(await _sceneService.CreateAsync(request));
+
+    [HttpDelete("{id:int}")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> Delete(int id)
+    {
+        var deleted = await _sceneService.DeleteAsync(id);
+        return deleted ? NoContent() : NotFound();
+    }
 }

@@ -21,4 +21,13 @@ public class SceneRepository : ISceneRepository
 
     public async Task<Scene> GetDefaultAsync() =>
         await _db.Scenes.FirstAsync(s => s.IsDefault);
+
+    public async Task AddAsync(Scene scene) =>
+        await _db.Scenes.AddAsync(scene);
+
+    public void Remove(Scene scene) =>
+        _db.Scenes.Remove(scene);
+
+    public async Task SaveChangesAsync() =>
+        await _db.SaveChangesAsync();
 }

@@ -65,6 +65,37 @@ public class MobileGadgetsDbContext : DbContext
                 FloorBottomColor = "#d6d6d2",
                 WallTopColor = "#faf9f7",
                 WallBottomColor = "#ebebe8",
+            },
+            // Two starter photo backgrounds — same pose as the two colour Scenes above, but the
+            // renderer skips the synthetic floor/wall for these (see SceneWarpStage) and uses the
+            // photo itself as the backdrop. Files are shipped in MobileGadgets.API/SeedAssets and
+            // copied into wwwroot/uploads at startup (see Program.cs) since wwwroot/uploads itself
+            // is per-environment and not committed.
+            new Scene
+            {
+                Id = 3,
+                Name = "Warm Beige Backdrop",
+                IsDefault = false,
+                CamY = 1.35,
+                CamZ = -2.1,
+                PitchDegrees = 9,
+                Focal = 1500,
+                LeanDegrees = 5,
+                YawDegrees = 0,
+                BackgroundImageUrl = "/uploads/seed-bg-warm-beige-studio.png",
+            },
+            new Scene
+            {
+                Id = 4,
+                Name = "Cool Slate Backdrop",
+                IsDefault = false,
+                CamY = 1.35,
+                CamZ = -2.1,
+                PitchDegrees = 9,
+                Focal = 1500,
+                LeanDegrees = 5,
+                YawDegrees = 0,
+                BackgroundImageUrl = "/uploads/seed-bg-cool-slate-studio.png",
             }
         );
     }

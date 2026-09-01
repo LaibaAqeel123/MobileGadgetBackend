@@ -21,4 +21,10 @@ public class Scene
     public string FloorBottomColor { get; set; } = "#111113";
     public string WallTopColor { get; set; } = "#3d3d40";
     public string WallBottomColor { get; set; } = "#28282b";
+
+    /// <summary>When set, this Scene uses a real background photo instead of the gradient
+    /// colours above: the renderer skips the synthetic floor/wall entirely (their perspective
+    /// grid would clash with an arbitrary photo) and cover-fits this image as the backdrop,
+    /// keeping the shadow/lighting/vignette/grain pass unchanged.</summary>
+    public string? BackgroundImageUrl { get; set; }
 }

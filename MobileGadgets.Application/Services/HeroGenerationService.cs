@@ -38,7 +38,13 @@ public class HeroGenerationService : IHeroGenerationService
         return generation is null ? null : ToDto(generation);
     }
 
-    public async Task<HeroGenerationDto> GenerateAsync(int heroModelId, Stream designContent, string designFileName, int? sceneId)
+    public async Task<HeroGenerationDto> GenerateAsync(
+        int heroModelId,
+        Stream designContent,
+        string designFileName,
+        int? sceneId,
+        Stream? customBackground = null,
+        string? customBackgroundFileName = null)
     {
         var model = await _heroModelRepository.GetByIdAsync(heroModelId)
             ?? throw new KeyNotFoundException($"HeroModel {heroModelId} not found.");
@@ -54,11 +60,32 @@ public class HeroGenerationService : IHeroGenerationService
         var designUrl = await _imageStorage.SaveImageAsync(designBuffer, designFileName);
         designBuffer.Position = 0;
 
+        // A customer-uploaded background overrides the Scene's own background (colour or preset
+        // photo) for this render only, same buffer-then-save-then-rewind pattern as the design.
+        string? customBackgroundUrl = null;
+        MemoryStream? customBackgroundBuffer = null;
+        if (customBackground is not null)
+        {
+            customBackgroundBuffer = new MemoryStream();
+            await customBackground.CopyToAsync(customBackgroundBuffer);
+            customBackgroundBuffer.Position = 0;
+            customBackgroundUrl = await _imageStorage.SaveImageAsync(customBackgroundBuffer, customBackgroundFileName ?? "background.png");
+            customBackgroundBuffer.Position = 0;
+        }
+
         using var baseStream = _imageStorage.OpenRead(model.BaseImageUrl);
         using var cameraMaskStream = _imageStorage.OpenRead(model.CameraMaskImageUrl);
         using var overlayStream = _imageStorage.OpenRead(model.OverlayImageUrl);
 
-        var png = await _renderer.RenderAsync(baseStream, cameraMaskStream, overlayStream, designBuffer, scene);
+        // No custom upload: fall back to the Scene's own preset photo, if it has one.
+        Stream? backgroundStream = customBackgroundBuffer;
+        using var presetBackgroundStream = backgroundStream is null && scene.BackgroundImageUrl is not null
+            ? _imageStorage.OpenRead(scene.BackgroundImageUrl)
+            : null;
+        backgroundStream ??= presetBackgroundStream;
+
+        var png = await _renderer.RenderAsync(baseStream, cameraMaskStream, overlayStream, designBuffer, scene, backgroundStream);
+        await (customBackgroundBuffer?.DisposeAsync() ?? ValueTask.CompletedTask);
 
         await using var outputStream = new MemoryStream(png);
         var outputUrl = await _imageStorage.SaveImageAsync(outputStream, "hero.png");
@@ -68,6 +95,7 @@ public class HeroGenerationService : IHeroGenerationService
             HeroModelId = heroModelId,
             SceneId = scene.Id,
             DesignImageUrl = designUrl,
+            CustomBackgroundImageUrl = customBackgroundUrl,
             OutputImageUrl = outputUrl,
             CreatedAt = DateTime.UtcNow,
         };
@@ -84,6 +112,7 @@ public class HeroGenerationService : IHeroGenerationService
         HeroModelId = g.HeroModelId,
         SceneId = g.SceneId,
         DesignImageUrl = g.DesignImageUrl,
+        CustomBackgroundImageUrl = g.CustomBackgroundImageUrl,
         OutputImageUrl = g.OutputImageUrl,
         CreatedAt = g.CreatedAt,
     };

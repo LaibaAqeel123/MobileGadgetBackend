@@ -122,7 +122,22 @@ if (args.Length > 0 && args[0] == "seed-admin")
 // The static file provider is captured at startup: the uploads folder must exist
 // before UseStaticFiles() runs, or it silently disables static serving for the
 // whole process lifetime.
-Directory.CreateDirectory(app.Configuration["StorageSettings:LocalBasePath"] ?? "wwwroot/uploads");
+var uploadsPath = app.Configuration["StorageSettings:LocalBasePath"] ?? "wwwroot/uploads";
+Directory.CreateDirectory(uploadsPath);
+
+// wwwroot/uploads is per-environment (gitignored — it's user-uploaded content, not source), so
+// the handful of background photos this system ships with (referenced by fixed filename in the
+// Scene seed data above) are committed under SeedAssets instead and copied in here on every
+// startup, in any environment, if not already present. Cheap no-op once they exist.
+var seedAssetsPath = Path.Combine(AppContext.BaseDirectory, "SeedAssets", "backgrounds");
+if (Directory.Exists(seedAssetsPath))
+{
+    foreach (var file in Directory.GetFiles(seedAssetsPath))
+    {
+        var dest = Path.Combine(uploadsPath, "seed-" + Path.GetFileName(file));
+        if (!File.Exists(dest)) File.Copy(file, dest);
+    }
+}
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())

@@ -16,7 +16,7 @@ public static class SceneWarpStage
     // hardcoded string once that admin panel work happens.
     private const string WatermarkText = "MOBILE GADGETS";
 
-    public static RgbaImage RenderScene(RgbaImage flat, Scene scene, int outW = 1500, int outH = 1500)
+    public static RgbaImage RenderScene(RgbaImage flat, Scene scene, RgbaImage? backgroundPhoto = null, int outW = 1500, int outH = 1500)
     {
         var w = flat.Width;
         var h = flat.Height;
@@ -60,58 +60,70 @@ public static class SceneWarpStage
             return (proj.Value.x * scale + offX, proj.Value.y * scale + offY);
         }
 
-        // ---- background (gradient + floor + wall + floor redrawn on top), built in its own
+        // ---- background: either a real photo (customer-uploaded or an admin-configured preset)
+        // stretched to fill the canvas, or the synthetic gradient + floor + wall. Built in its own
         // buffer so it can be blurred BEFORE the sharp phone is composited on top — real
-        // depth-of-field is what actually sells "photographed," a crisp gradient does not. ----
-        var sceneImg = new RgbaImage(outW, outH);
-        var bgTop = ColorUtils.ParseHex(scene.BackgroundTopColor);
-        var bgBottom = ColorUtils.ParseHex(scene.BackgroundBottomColor);
-        for (var y = 0; y < outH; y++)
+        // depth-of-field is what actually sells "photographed," a crisp gradient does not. A real
+        // photo skips the synthetic floor/wall on purpose: their perspective grid is drawn for one
+        // specific virtual camera and would visibly clash with whatever perspective is already in
+        // an arbitrary photo — the shadow below is what grounds the phone instead. ----
+        RgbaImage sceneImg;
+        if (backgroundPhoto is not null)
         {
-            var t = (double)y / outH;
-            byte r = (byte)Math.Round(bgTop.r + (bgBottom.r - bgTop.r) * t);
-            byte g = (byte)Math.Round(bgTop.g + (bgBottom.g - bgTop.g) * t);
-            byte b = (byte)Math.Round(bgTop.b + (bgBottom.b - bgTop.b) * t);
-            for (var x = 0; x < outW; x++)
-            {
-                var idx = (y * outW + x) * 4;
-                sceneImg.Data[idx] = r;
-                sceneImg.Data[idx + 1] = g;
-                sceneImg.Data[idx + 2] = b;
-                sceneImg.Data[idx + 3] = 255;
-            }
+            sceneImg = backgroundPhoto.Clone();
         }
+        else
+        {
+            sceneImg = new RgbaImage(outW, outH);
+            var bgTop = ColorUtils.ParseHex(scene.BackgroundTopColor);
+            var bgBottom = ColorUtils.ParseHex(scene.BackgroundBottomColor);
+            for (var y = 0; y < outH; y++)
+            {
+                var t = (double)y / outH;
+                byte r = (byte)Math.Round(bgTop.r + (bgBottom.r - bgTop.r) * t);
+                byte g = (byte)Math.Round(bgTop.g + (bgBottom.g - bgTop.g) * t);
+                byte b = (byte)Math.Round(bgTop.b + (bgBottom.b - bgTop.b) * t);
+                for (var x = 0; x < outW; x++)
+                {
+                    var idx = (y * outW + x) * 4;
+                    sceneImg.Data[idx] = r;
+                    sceneImg.Data[idx + 1] = g;
+                    sceneImg.Data[idx + 2] = b;
+                    sceneImg.Data[idx + 3] = 255;
+                }
+            }
 
-        const int floorTexSize = 900;
-        var floorTex = SceneTextures.FloorTexture(floorTexSize, floorTexSize, ColorUtils.ParseHex(scene.FloorTopColor), ColorUtils.ParseHex(scene.FloorBottomColor));
-        const double floorHalfW = 7, floorNearZ = -0.6, floorFarZ = 7;
-        (double x, double y, double z)[] floorCorners3d =
-        [
-            (-floorHalfW, 0, floorNearZ),
-            (floorHalfW, 0, floorNearZ),
-            (floorHalfW, 0, floorFarZ),
-            (-floorHalfW, 0, floorFarZ),
-        ];
-        var floorScreen = floorCorners3d.Select(ToScreen).ToArray();
-        if (floorScreen.All(p => p is not null))
-            PixelOps.WarpInto(sceneImg, floorTex, floorScreen.Select(p => p!.Value).ToArray());
+            const int floorTexSize = 900;
+            var floorTex = SceneTextures.FloorTexture(floorTexSize, floorTexSize, ColorUtils.ParseHex(scene.FloorTopColor), ColorUtils.ParseHex(scene.FloorBottomColor));
+            const double floorHalfW = 7, floorNearZ = -0.6, floorFarZ = 7;
+            (double x, double y, double z)[] floorCorners3d =
+            [
+                (-floorHalfW, 0, floorNearZ),
+                (floorHalfW, 0, floorNearZ),
+                (floorHalfW, 0, floorFarZ),
+                (-floorHalfW, 0, floorFarZ),
+            ];
+            var floorScreen = floorCorners3d.Select(ToScreen).ToArray();
+            if (floorScreen.All(p => p is not null))
+                PixelOps.WarpInto(sceneImg, floorTex, floorScreen.Select(p => p!.Value).ToArray());
 
-        const int wallTexW = 40, wallTexH = 900;
-        var wallTex = SceneTextures.WallTexture(wallTexW, wallTexH, ColorUtils.ParseHex(scene.WallTopColor), ColorUtils.ParseHex(scene.WallBottomColor));
-        var wallZ = floorFarZ * 0.6;
-        const double wallHalfW = 7, wallH = 6;
-        (double x, double y, double z)[] wallCorners3d =
-        [
-            (-wallHalfW, wallH, wallZ),
-            (wallHalfW, wallH, wallZ),
-            (wallHalfW, 0, wallZ),
-            (-wallHalfW, 0, wallZ),
-        ];
-        var wallScreen = wallCorners3d.Select(ToScreen).ToArray();
-        if (wallScreen.All(p => p is not null))
-            PixelOps.WarpInto(sceneImg, wallTex, wallScreen.Select(p => p!.Value).ToArray());
-        if (floorScreen.All(p => p is not null))
-            PixelOps.WarpInto(sceneImg, floorTex, floorScreen.Select(p => p!.Value).ToArray());
+            const int wallTexW = 40, wallTexH = 900;
+            var wallTex = SceneTextures.WallTexture(wallTexW, wallTexH, ColorUtils.ParseHex(scene.WallTopColor), ColorUtils.ParseHex(scene.WallBottomColor));
+            var wallZ = floorFarZ * 0.6;
+            const double wallHalfW = 7, wallH = 6;
+            (double x, double y, double z)[] wallCorners3d =
+            [
+                (-wallHalfW, wallH, wallZ),
+                (wallHalfW, wallH, wallZ),
+                (wallHalfW, 0, wallZ),
+                (-wallHalfW, 0, wallZ),
+            ];
+            var wallScreen = wallCorners3d.Select(ToScreen).ToArray();
+            if (wallScreen.All(p => p is not null))
+                PixelOps.WarpInto(sceneImg, wallTex, wallScreen.Select(p => p!.Value).ToArray());
+            if (floorScreen.All(p => p is not null))
+                PixelOps.WarpInto(sceneImg, floorTex, floorScreen.Select(p => p!.Value).ToArray());
+        }
 
         sceneImg.GaussianBlur(9);
 

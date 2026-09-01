@@ -20,4 +20,10 @@
     <ProjectReference Include="..\MobileGadgets.Infrastructure\MobileGadgets.Infrastructure.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Background photos this system ships with, copied into wwwroot/uploads at startup
+         (Program.cs) since wwwroot/uploads itself is per-environment and gitignored. -->
+    <Content Include="SeedAssets\**" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

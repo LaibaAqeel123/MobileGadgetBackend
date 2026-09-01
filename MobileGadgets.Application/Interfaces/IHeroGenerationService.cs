@@ -9,7 +9,15 @@ public interface IHeroGenerationService
 
     /// <summary>Runs the full generate flow: flattens + scene-warps the HeroModel's layers with
     /// the uploaded design, stores both the design and the full-resolution output permanently,
-    /// and records a HeroGeneration. sceneId null uses the default Scene. Throws
-    /// KeyNotFoundException if heroModelId or sceneId doesn't exist.</summary>
-    Task<HeroGenerationDto> GenerateAsync(int heroModelId, Stream designContent, string designFileName, int? sceneId);
+    /// and records a HeroGeneration. sceneId null uses the default Scene. When customBackground
+    /// is provided, it's stored and used as the background for this render instead of the
+    /// selected Scene's own background (colour or preset photo) — the Scene still supplies pose.
+    /// Throws KeyNotFoundException if heroModelId or sceneId doesn't exist.</summary>
+    Task<HeroGenerationDto> GenerateAsync(
+        int heroModelId,
+        Stream designContent,
+        string designFileName,
+        int? sceneId,
+        Stream? customBackground = null,
+        string? customBackgroundFileName = null);
 }
