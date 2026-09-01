@@ -38,13 +38,18 @@ public class HeroGenerationService : IHeroGenerationService
         return generation is null ? null : ToDto(generation);
     }
 
+    // A wider turn was tried during development and rejected — it exposed a shadow/base gap at
+    // the phone's far bottom corner. +/-12 degrees stays well inside the range confirmed clean.
+    private const double MaxYawDegrees = 12;
+
     public async Task<HeroGenerationDto> GenerateAsync(
         int heroModelId,
         Stream designContent,
         string designFileName,
         int? sceneId,
         Stream? customBackground = null,
-        string? customBackgroundFileName = null)
+        string? customBackgroundFileName = null,
+        double? yawDegrees = null)
     {
         var model = await _heroModelRepository.GetByIdAsync(heroModelId)
             ?? throw new KeyNotFoundException($"HeroModel {heroModelId} not found.");
@@ -84,7 +89,12 @@ public class HeroGenerationService : IHeroGenerationService
             : null;
         backgroundStream ??= presetBackgroundStream;
 
-        var png = await _renderer.RenderAsync(baseStream, cameraMaskStream, overlayStream, designBuffer, scene, backgroundStream);
+        // A separate, untracked copy carries the angle override into the renderer — mutating
+        // `scene` directly would risk EF Core persisting the override back into that Scene's row
+        // for every future generation, since it's still a tracked entity on this DbContext.
+        var renderScene = yawDegrees is null ? scene : CloneWithYaw(scene, Math.Clamp(yawDegrees.Value, -MaxYawDegrees, MaxYawDegrees));
+
+        var png = await _renderer.RenderAsync(baseStream, cameraMaskStream, overlayStream, designBuffer, renderScene, backgroundStream);
         await (customBackgroundBuffer?.DisposeAsync() ?? ValueTask.CompletedTask);
 
         await using var outputStream = new MemoryStream(png);
@@ -105,6 +115,26 @@ public class HeroGenerationService : IHeroGenerationService
 
         return ToDto(generation);
     }
+
+    private static Scene CloneWithYaw(Scene scene, double yawDegrees) => new()
+    {
+        Id = scene.Id,
+        Name = scene.Name,
+        IsDefault = scene.IsDefault,
+        CamY = scene.CamY,
+        CamZ = scene.CamZ,
+        PitchDegrees = scene.PitchDegrees,
+        Focal = scene.Focal,
+        LeanDegrees = scene.LeanDegrees,
+        YawDegrees = yawDegrees,
+        BackgroundTopColor = scene.BackgroundTopColor,
+        BackgroundBottomColor = scene.BackgroundBottomColor,
+        FloorTopColor = scene.FloorTopColor,
+        FloorBottomColor = scene.FloorBottomColor,
+        WallTopColor = scene.WallTopColor,
+        WallBottomColor = scene.WallBottomColor,
+        BackgroundImageUrl = scene.BackgroundImageUrl,
+    };
 
     private static HeroGenerationDto ToDto(HeroGeneration g) => new()
     {
