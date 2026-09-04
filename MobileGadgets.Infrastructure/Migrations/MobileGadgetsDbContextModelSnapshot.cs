@@ -86,6 +86,9 @@ namespace MobileGadgets.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("DesignQuadJson")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("OverlayImageUrl")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -93,6 +96,9 @@ namespace MobileGadgets.Infrastructure.Migrations
                     b.Property<string>("PhoneName")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("PoseType")
+                        .HasColumnType("int");
 
                     b.HasKey("Id");
 

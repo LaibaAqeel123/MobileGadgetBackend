@@ -31,10 +31,12 @@ public class HeroModelService : IHeroModelService
         {
             PhoneName = request.PhoneName,
             CaseType = request.CaseType,
+            PoseType = request.PoseType,
             BaseImageUrl = request.BaseImageUrl,
             DesignMaskImageUrl = request.DesignMaskImageUrl,
             CameraMaskImageUrl = request.CameraMaskImageUrl,
             OverlayImageUrl = request.OverlayImageUrl,
+            DesignQuadJson = request.DesignQuadJson,
             CreatedAt = DateTime.UtcNow,
         };
 
@@ -51,10 +53,12 @@ public class HeroModelService : IHeroModelService
 
         model.PhoneName = request.PhoneName;
         model.CaseType = request.CaseType;
+        model.PoseType = request.PoseType;
         model.BaseImageUrl = request.BaseImageUrl;
         model.DesignMaskImageUrl = request.DesignMaskImageUrl;
         model.CameraMaskImageUrl = request.CameraMaskImageUrl;
         model.OverlayImageUrl = request.OverlayImageUrl;
+        model.DesignQuadJson = request.DesignQuadJson;
 
         await _repository.SaveChangesAsync();
         return ToDto(model);
@@ -75,10 +79,12 @@ public class HeroModelService : IHeroModelService
         Id = model.Id,
         PhoneName = model.PhoneName,
         CaseType = model.CaseType,
+        PoseType = model.PoseType,
         BaseImageUrl = model.BaseImageUrl,
         DesignMaskImageUrl = model.DesignMaskImageUrl,
         CameraMaskImageUrl = model.CameraMaskImageUrl,
         OverlayImageUrl = model.OverlayImageUrl,
+        DesignQuadJson = model.DesignQuadJson,
         CreatedAt = model.CreatedAt,
     };
 }
