@@ -27,4 +27,12 @@ public interface ITiltedDetectionService
     /// themselves — correct for a one-piece case molded in a single uniform color.</summary>
     Task<TiltedDetectionResult> DetectAsync(
         Stream basePhoto, double cameraRoundR = 25, double cameraPadPx = 15, bool coverCameraPlate = false);
+
+    /// <summary>Rasterizes a fresh camera-mask PNG directly from admin-edited outline points +
+    /// spot overrides — deliberately skips silhouette detection, corner fitting, and the lighting
+    /// map entirely (only needs the photo's own pixel dimensions), so this is a couple seconds,
+    /// not the ~30s a full DetectAsync costs. This is what the point editor calls after every
+    /// edit. <paramref name="cameraOutlinePointsJson"/> is a serialized List&lt;TiltedPoint&gt;,
+    /// <paramref name="cameraSpotsJson"/> a serialized List&lt;CameraSpot&gt;.</summary>
+    Task<byte[]> BakeCameraMaskAsync(Stream basePhoto, string cameraOutlinePointsJson, string cameraSpotsJson);
 }

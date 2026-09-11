@@ -52,30 +52,42 @@ public class HeroModelsController : ControllerBase
     }
 
     /// <summary>Admin-only preview step for a Tilted HeroModel: runs auto-detection on an uploaded
-    /// photo and returns the resulting masks + geometry. Saves nothing — the admin reviews this
-    /// preview (with a test design, client-side) and only persists it by calling Create/Update
-    /// afterward with PoseType=Tilted and these same values. cameraRoundR/cameraPadPx let the
-    /// admin re-run this with a nudged camera-area roundness/margin if the first preview isn't
-    /// quite right for this particular photo.</summary>
+    /// photo and returns the resulting masks + geometry, including a starting camera-area OUTLINE
+    /// as real editable points (CameraOutlinePointsJson) — seeds the point editor with an
+    /// already-close guess. Saves nothing — the admin reviews this preview (with a test design,
+    /// client-side), refines the outline/spots with the point editor (see bake-camera-mask), and
+    /// only persists it by calling Create/Update afterward with PoseType=Tilted.</summary>
     [HttpPost("detect-tilted")]
     [Authorize(Roles = "Admin")]
     [RequestSizeLimit(50_000_000)]
-    public async Task<IActionResult> DetectTilted(
-        IFormFile photo, [FromForm] double? cameraRoundR = null, [FromForm] double? cameraPadPx = null,
-        [FromForm] bool coverCameraPlate = false)
+    public async Task<IActionResult> DetectTilted(IFormFile photo)
     {
         if (photo.Length == 0) return BadRequest(new { error = "No photo file provided." });
 
         try
         {
             await using var photoStream = photo.OpenReadStream();
-            var result = await _heroModelService.DetectTiltedAsync(photoStream, cameraRoundR, cameraPadPx, coverCameraPlate);
+            var result = await _heroModelService.DetectTiltedAsync(photoStream);
             return Ok(result);
         }
         catch (InvalidOperationException ex)
         {
             return BadRequest(new { error = ex.Message });
         }
+    }
+
+    /// <summary>Fast path the point editor calls after every edit: rasterizes a fresh camera mask
+    /// directly from the admin's current outline points + spot overrides (no re-detection at all —
+    /// a couple seconds, not ~30s) and saves it. Returns the new mask's URL; follow with
+    /// preview-tilted (passing this URL as cameraMaskImageUrl) to actually see the design
+    /// applied.</summary>
+    [HttpPost("bake-camera-mask")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> BakeCameraMask(
+        [FromForm] string baseImageUrl, [FromForm] string cameraOutlinePointsJson, [FromForm] string cameraSpotsJson)
+    {
+        var url = await _heroModelService.BakeCameraMaskAsync(baseImageUrl, cameraOutlinePointsJson, cameraSpotsJson);
+        return Ok(new { cameraMaskImageUrl = url });
     }
 
     /// <summary>Renders one test composite from an in-progress (not-yet-saved) Tilted preview —

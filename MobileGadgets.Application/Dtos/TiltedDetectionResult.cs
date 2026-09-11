@@ -25,4 +25,9 @@ public class TiltedDetectionResult
 
     public required TiltedQuad Quad { get; init; }
     public required TiltedBbox Bbox { get; init; }
+
+    /// <summary>A starting outline for the camera area, as real editable points (not just a raster
+    /// mask) — seeds the admin's point editor with an already-close guess so they're nudging a
+    /// real shape, never drawing one from nothing. Empty if no camera hole was found.</summary>
+    public required List<TiltedPoint> CameraOutlinePoints { get; init; }
 }

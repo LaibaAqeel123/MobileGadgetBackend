@@ -66,7 +66,7 @@ public class TiltedDetectionService : ITiltedDetectionService
                 "Try a photo with a cleaner, darker background and a well-lit case.");
 
         var quad = FitCaseQuad(body, w, h);
-        var (holeMaskFull, clusters) = BuildCameraHoleMask(lum, w, h, cameraRoundR, cameraPadPx, coverCameraPlate);
+        var (holeMaskFull, mainOutline) = BuildCameraHoleMask(lum, w, h, cameraRoundR, cameraPadPx, coverCameraPlate);
 
         var silhouettePng = await BuildMaskImage(body, w, h).ToPngBytesAsync();
         var cameraMaskPng = await holeMaskFull.ToPngBytesAsync();
@@ -96,7 +96,33 @@ public class TiltedDetectionService : ITiltedDetectionService
             OverlayPng = overlayPng,
             Quad = quad,
             Bbox = new TiltedBbox(bx0, by0, bx1, by1),
+            CameraOutlinePoints = mainOutline.Select(p => new TiltedPoint(p.X, p.Y)).ToList(),
         };
+    }
+
+    public async Task<byte[]> BakeCameraMaskAsync(Stream basePhoto, string cameraOutlinePointsJson, string cameraSpotsJson)
+    {
+        var full = await RgbaImage.LoadAsync(basePhoto);
+        int w = full.Width, h = full.Height;
+
+        var outline = System.Text.Json.JsonSerializer.Deserialize<List<TiltedPoint>>(cameraOutlinePointsJson) ?? [];
+        var spotsDto = System.Text.Json.JsonSerializer.Deserialize<List<CameraSpot>>(cameraSpotsJson) ?? [];
+
+        var outlinePts = outline.Select(p => new Point2(p.X, p.Y)).ToList();
+        var dense = CatmullRomClosed(outlinePts);
+        var spots = spotsDto.Select(s => (new Point2(s.X, s.Y), s.Radius, s.Protect)).ToList();
+
+        var maskBytes = RasterizeSmoothShapeMask(w, h, dense, spots);
+
+        var maskImg = new RgbaImage(w, h);
+        for (var i = 0; i < w * h; i++)
+        {
+            var v = maskBytes[i];
+            var idx = i * 4;
+            maskImg.Data[idx] = v; maskImg.Data[idx + 1] = v; maskImg.Data[idx + 2] = v; maskImg.Data[idx + 3] = 255;
+        }
+        maskImg.GaussianBlur(2);
+        return await maskImg.ToPngBytesAsync();
     }
 
     /// <summary>The core of the v2 approach: fit the case's 4 corners from its straight edges,
@@ -196,7 +222,7 @@ public class TiltedDetectionService : ITiltedDetectionService
     /// of the product. Set true for that case: only the individual lens/flash holes themselves stay
     /// excluded (each with its own small, tight margin), and the design flows across the rest of
     /// the plate exactly like the rest of the body.</summary>
-    private static (RgbaImage Mask, List<List<int>> Clusters) BuildCameraHoleMask(
+    private static (RgbaImage Mask, List<Point2> MainOutline) BuildCameraHoleMask(
         double[] lum, int w, int h, double mainRoundR, double mainMarginPercent, bool coverCameraPlate)
     {
         var dark = new byte[w * h];
@@ -222,6 +248,7 @@ public class TiltedDetectionService : ITiltedDetectionService
         var refSizePx = componentSizes.Count > 0 ? componentSizes[componentSizes.Count / 2] : 40;
 
         var mask = new RgbaImage(w, h);
+        List<Point2> mainOutline = [];
         for (var ci = 0; ci < clusters.Count; ci++)
         {
             // Roundness is a PERCENT of the shape's own size (see BuildRoundedExclusion) -- a
@@ -241,9 +268,14 @@ public class TiltedDetectionService : ITiltedDetectionService
                     mask.Data[idx] = 255; mask.Data[idx + 1] = 255; mask.Data[idx + 2] = 255; mask.Data[idx + 3] = 255;
                 }
             }
+            // Only the MAIN cluster's outline is exposed for the admin to edit -- the point
+            // editor is scoped to "the one big camera area," matching what the two real examples
+            // (image 1/2) were both about. Secondary small clusters (a button slot, a stray
+            // speck) stay fully automatic.
+            if (ci == 0 && !coverCameraPlate) mainOutline = SampleRoundedQuadBoundary(clusters[ci], w, marginPx, roundnessPercent);
         }
         mask.GaussianBlur(2);
-        return (mask, clusters);
+        return (mask, mainOutline);
     }
 
     private static RgbaImage BuildMaskImage(byte[] binaryMask, int w, int h)

@@ -31,20 +31,20 @@ public class HeroModel
     /// render tier, to size/position the cut-out case against the new backdrop. Null for Straight.</summary>
     public string? CaseBboxJson { get; set; }
 
-    /// <summary>Tilted only, admin-tunable per model: the camera area's corner roundness and
-    /// safety margin in pixels. Every real module's corner radius genuinely differs a little
-    /// model to model — rather than require the automatic default to be pixel-perfect on every
-    /// photo, the admin can nudge these two numbers after seeing the preview and re-run detection.
-    /// Null uses TiltedDetectionService's own defaults.</summary>
-    public double? CameraRoundR { get; set; }
-    public double? CameraPadPx { get; set; }
+    /// <summary>Tilted only: the camera area's outline as admin-editable points (superseded a
+    /// roundness%/margin% slider pair — confirmed on real photos that no 2-number parametric
+    /// family covers every real camera-bump shape across phone brands, e.g. a Samsung's tall
+    /// vertical pill vs. an iPhone's rounded square). Auto-detection seeds this with an
+    /// already-close guess; kept here (not just baked into CameraMaskImageUrl) so a future re-edit
+    /// has the real points to continue from, not just a raster to re-trace. Serialized
+    /// List&lt;TiltedPoint&gt;. Null for Straight.</summary>
+    public string? CameraOutlinePointsJson { get; set; }
 
-    /// <summary>Tilted only: false (default) keeps the whole camera module area (lenses + the
-    /// raised plate/trim around them) in its real photographed color — correct when that trim is
-    /// a genuinely different material/color from the body. True prints the design across the
-    /// plate too, excluding only the individual lens/flash holes — correct for a one-piece case
-    /// molded in a single uniform color.</summary>
-    public bool CoverCameraPlate { get; set; }
+    /// <summary>Tilted only: admin-placed local protect/allow overrides beyond the main outline
+    /// (see CameraSpot) — for a specific wrong spot that reshaping the whole outline can't fix
+    /// cleanly (a stray uncaught hole; a piece of real body wrongly swallowed by the outline).
+    /// Serialized List&lt;CameraSpot&gt;. Null/empty for Straight or when none are placed.</summary>
+    public string? CameraSpotsJson { get; set; }
 
     public DateTime CreatedAt { get; set; }
 }

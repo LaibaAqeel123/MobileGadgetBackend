@@ -75,11 +75,11 @@ namespace MobileGadgets.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<double?>("CameraPadPx")
-                        .HasColumnType("float");
+                    b.Property<string>("CameraOutlinePointsJson")
+                        .HasColumnType("nvarchar(max)");
 
-                    b.Property<double?>("CameraRoundR")
-                        .HasColumnType("float");
+                    b.Property<string>("CameraSpotsJson")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("CaseBboxJson")
                         .HasColumnType("nvarchar(max)");
@@ -87,9 +87,6 @@ namespace MobileGadgets.Infrastructure.Migrations
                     b.Property<string>("CaseType")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
-
-                    b.Property<bool>("CoverCameraPlate")
-                        .HasColumnType("bit");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");

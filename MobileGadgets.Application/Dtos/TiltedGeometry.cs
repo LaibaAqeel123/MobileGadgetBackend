@@ -9,3 +9,11 @@ public readonly record struct TiltedPoint(double X, double Y);
 public readonly record struct TiltedQuad(TiltedPoint Tl, TiltedPoint Tr, TiltedPoint Br, TiltedPoint Bl);
 
 public readonly record struct TiltedBbox(double X0, double Y0, double X1, double Y1);
+
+/// <summary>An admin-placed local override on the camera area, beyond what the main outline
+/// covers — the two spot-fix tools an admin needs when the problem is a specific point, not the
+/// whole outline: <see cref="Protect"/> true marks a small area that must NEVER get the design
+/// even though it falls inside the normally-printable region (a stray uncaught hole, a logo); false
+/// marks a small area that SHOULD get the design even though the outline currently excludes it
+/// (part of the real body wrongly swallowed by an imperfect outline).</summary>
+public readonly record struct CameraSpot(double X, double Y, double Radius, bool Protect);

@@ -441,4 +441,211 @@ public static class Geometry2D
 
         return new RoundedQuadTest(padded, roundRpx);
     }
+
+    /// <summary>Same padded/rounded-rect construction as <see cref="BuildRoundedExclusion"/>, but
+    /// returns the actual boundary as an ordered list of points instead of a membership test —
+    /// used to SEED the admin's editable outline with a real starting shape (walks the 4 straight
+    /// edges and 4 corner arcs, emitting evenly spaced points) so they're nudging a already-close
+    /// guess, never drawing from nothing.</summary>
+    public static List<Point2> SampleRoundedQuadBoundary(List<int> members, int w, double marginPx, double roundnessPercent, int totalPoints = 20)
+    {
+        var hull = ConvexHull(members.Select(idx => new Point2(idx % w, idx / w)).ToList());
+        var (c0, c1, c2, c3) = MinAreaRect(hull);
+        var corners = new[] { c0, c1, c2, c3 };
+        var cx = corners.Average(c => c.X);
+        var cy = corners.Average(c => c.Y);
+        var centroid = new Point2(cx, cy);
+
+        var edgeLines = new Line2[4];
+        for (var s = 0; s < 4; s++)
+        {
+            var a = corners[s];
+            var b = corners[(s + 1) % 4];
+            var ex = b.X - a.X;
+            var ey = b.Y - a.Y;
+            var len = Math.Sqrt(ex * ex + ey * ey);
+            edgeLines[s] = new Line2(a, new Point2(ex / len, ey / len));
+        }
+        var expanded = edgeLines.Select(l => ExpandLineOutward(l, centroid, marginPx)).ToArray();
+        var padded = new Point2[4];
+        for (var i = 0; i < 4; i++) padded[i] = LineIntersect(expanded[(i + 3) % 4], expanded[i]);
+
+        var sideA = Math.Sqrt(Math.Pow(padded[1].X - padded[0].X, 2) + Math.Pow(padded[1].Y - padded[0].Y, 2));
+        var sideB = Math.Sqrt(Math.Pow(padded[3].X - padded[0].X, 2) + Math.Pow(padded[3].Y - padded[0].Y, 2));
+        var roundR = Math.Clamp(roundnessPercent, 0, 100) / 100.0 * (Math.Min(sideA, sideB) / 2);
+
+        // Walk the shape's perimeter (straight edge, corner arc, straight edge, ...) and drop
+        // `totalPoints` evenly spaced along it by arc length, so a heavily-rounded corner gets a
+        // fair share of points too, not just the straight runs. Per-corner tangent points (R back
+        // along the incoming edge, R forward along the outgoing edge) and arc center (corner +
+        // both adjacent inward normals * R -- exact for a rectangle's corners, which this padded
+        // quad always is) are the same construction RoundedQuadTest already uses successfully;
+        // this just walks that same geometry instead of testing membership against it.
+        Point2 InwardNormal(Point2 a, Point2 b)
+        {
+            var ex = b.X - a.X; var ey = b.Y - a.Y;
+            var len = Math.Sqrt(ex * ex + ey * ey);
+            var nx = -ey / len; var ny = ex / len;
+            return ((cx - a.X) * nx + (cy - a.Y) * ny) >= 0 ? new Point2(nx, ny) : new Point2(-nx, -ny);
+        }
+
+        var tIn = new Point2[4];
+        var tOut = new Point2[4];
+        var arcCenter = new Point2[4];
+        for (var c = 0; c < 4; c++)
+        {
+            var prev = padded[(c + 3) % 4];
+            var here = padded[c];
+            var next = padded[(c + 1) % 4];
+            var uPrev = new Point2((here.X - prev.X), (here.Y - prev.Y));
+            var lenPrev = Math.Sqrt(uPrev.X * uPrev.X + uPrev.Y * uPrev.Y);
+            uPrev = new Point2(uPrev.X / lenPrev, uPrev.Y / lenPrev);
+            var uNext = new Point2((next.X - here.X), (next.Y - here.Y));
+            var lenNext = Math.Sqrt(uNext.X * uNext.X + uNext.Y * uNext.Y);
+            uNext = new Point2(uNext.X / lenNext, uNext.Y / lenNext);
+
+            tIn[c] = new Point2(here.X - uPrev.X * roundR, here.Y - uPrev.Y * roundR);
+            tOut[c] = new Point2(here.X + uNext.X * roundR, here.Y + uNext.Y * roundR);
+            var nPrev = InwardNormal(prev, here);
+            var nNext = InwardNormal(here, next);
+            arcCenter[c] = new Point2(here.X + nPrev.X * roundR + nNext.X * roundR, here.Y + nPrev.Y * roundR + nNext.Y * roundR);
+        }
+
+        var segments = new List<(Point2 Start, Point2 End, double Length, bool IsArc, Point2 ArcCenter, double A0, double A1)>();
+        for (var c = 0; c < 4; c++)
+        {
+            var straightStart = tOut[c];
+            var straightEnd = tIn[(c + 1) % 4];
+            var dx = straightEnd.X - straightStart.X;
+            var dy = straightEnd.Y - straightStart.Y;
+            segments.Add((straightStart, straightEnd, Math.Sqrt(dx * dx + dy * dy), false, default, 0, 0));
+
+            if (roundR > 0.01)
+            {
+                var next = (c + 1) % 4;
+                var a0 = Math.Atan2(tIn[next].Y - arcCenter[next].Y, tIn[next].X - arcCenter[next].X);
+                var a1 = Math.Atan2(tOut[next].Y - arcCenter[next].Y, tOut[next].X - arcCenter[next].X);
+                var delta = a1 - a0;
+                while (delta <= -Math.PI) delta += 2 * Math.PI;
+                while (delta > Math.PI) delta -= 2 * Math.PI;
+                segments.Add((tIn[next], tOut[next], Math.Abs(delta) * roundR, true, arcCenter[next], a0, a0 + delta));
+            }
+        }
+
+        var totalLen = segments.Sum(s => s.Length);
+        if (totalLen < 1e-6) return [padded[0], padded[1], padded[2], padded[3]];
+
+        var result = new List<Point2>();
+        var step = totalLen / totalPoints;
+        for (var i = 0; i < totalPoints; i++)
+        {
+            var target = i * step;
+            var acc = 0.0;
+            var seg = segments[^1];
+            var localT = 1.0;
+            foreach (var s in segments)
+            {
+                if (target <= acc + s.Length || s.Length < 1e-9)
+                {
+                    seg = s;
+                    localT = s.Length > 1e-9 ? Math.Clamp((target - acc) / s.Length, 0, 1) : 0;
+                    break;
+                }
+                acc += s.Length;
+            }
+            result.Add(seg.IsArc
+                ? new Point2(seg.ArcCenter.X + roundR * Math.Cos(seg.A0 + (seg.A1 - seg.A0) * localT), seg.ArcCenter.Y + roundR * Math.Sin(seg.A0 + (seg.A1 - seg.A0) * localT))
+                : new Point2(seg.Start.X + (seg.End.X - seg.Start.X) * localT, seg.Start.Y + (seg.End.Y - seg.Start.Y) * localT));
+        }
+        return result;
+    }
+
+    /// <summary>Evaluates a closed Catmull-Rom spline through `points` (wraps around, so the
+    /// curve passes smoothly through every point with no start/end seam) at samplesPerSegment
+    /// resolution — the admin only places a handful of points, this is what turns them into a
+    /// smooth, natural-looking curve instead of a faceted straight-line polygon (the old test-
+    /// branch approach's own visible flaw).</summary>
+    public static List<Point2> CatmullRomClosed(List<Point2> points, int samplesPerSegment = 16)
+    {
+        var n = points.Count;
+        if (n < 3) return points;
+        var result = new List<Point2>();
+        for (var i = 0; i < n; i++)
+        {
+            var p0 = points[(i - 1 + n) % n];
+            var p1 = points[i];
+            var p2 = points[(i + 1) % n];
+            var p3 = points[(i + 2) % n];
+            for (var s = 0; s < samplesPerSegment; s++)
+            {
+                var t = (double)s / samplesPerSegment;
+                var t2 = t * t;
+                var t3 = t2 * t;
+                var x = 0.5 * (2 * p1.X + (-p0.X + p2.X) * t + (2 * p0.X - 5 * p1.X + 4 * p2.X - p3.X) * t2 + (-p0.X + 3 * p1.X - 3 * p2.X + p3.X) * t3);
+                var y = 0.5 * (2 * p1.Y + (-p0.Y + p2.Y) * t + (2 * p0.Y - 5 * p1.Y + 4 * p2.Y - p3.Y) * t2 + (-p0.Y + 3 * p1.Y - 3 * p2.Y + p3.Y) * t3);
+                result.Add(new Point2(x, y));
+            }
+        }
+        return result;
+    }
+
+    /// <summary>Rasterizes a filled mask (0/255 per pixel) from a smooth closed outline (already
+    /// densely sampled — see <see cref="CatmullRomClosed"/>) via horizontal scanline fill
+    /// (even-odd rule) — much faster than a per-pixel point-in-polygon test for a several-hundred-
+    /// point curve on a multi-megapixel image. Then unions/subtracts each spot circle: `Protect`
+    /// spots ADD to the excluded area (art must never appear there, even inside an otherwise-
+    /// printable region); non-protect ("allow") spots SUBTRACT from it (art is forced to appear
+    /// there, even inside an otherwise-excluded region) — the two local-override tools an admin
+    /// needs beyond just reshaping the main outline (a stray uncaught hole in the middle of the
+    /// printable area; a piece of the real body wrongly swallowed by the outline).</summary>
+    public static byte[] RasterizeSmoothShapeMask(int w, int h, List<Point2> denseOutline, List<(Point2 Center, double Radius, bool Protect)> spots)
+    {
+        var mask = new byte[w * h];
+        if (denseOutline.Count >= 3)
+        {
+            var minY = Math.Max(0, (int)Math.Floor(denseOutline.Min(p => p.Y)));
+            var maxY = Math.Min(h - 1, (int)Math.Ceiling(denseOutline.Max(p => p.Y)));
+            for (var y = minY; y <= maxY; y++)
+            {
+                var yc = y + 0.5;
+                var xs = new List<double>();
+                for (var i = 0; i < denseOutline.Count; i++)
+                {
+                    var a = denseOutline[i];
+                    var b = denseOutline[(i + 1) % denseOutline.Count];
+                    if ((a.Y <= yc && b.Y > yc) || (b.Y <= yc && a.Y > yc))
+                    {
+                        var t = (yc - a.Y) / (b.Y - a.Y);
+                        xs.Add(a.X + t * (b.X - a.X));
+                    }
+                }
+                xs.Sort();
+                for (var i = 0; i + 1 < xs.Count; i += 2)
+                {
+                    var x0 = Math.Max(0, (int)Math.Round(xs[i]));
+                    var x1 = Math.Min(w - 1, (int)Math.Round(xs[i + 1]));
+                    for (var x = x0; x <= x1; x++) mask[y * w + x] = 255;
+                }
+            }
+        }
+
+        foreach (var (center, radius, protect) in spots)
+        {
+            var x0 = Math.Max(0, (int)Math.Floor(center.X - radius));
+            var x1 = Math.Min(w - 1, (int)Math.Ceiling(center.X + radius));
+            var y0 = Math.Max(0, (int)Math.Floor(center.Y - radius));
+            var y1 = Math.Min(h - 1, (int)Math.Ceiling(center.Y + radius));
+            for (var y = y0; y <= y1; y++)
+            {
+                for (var x = x0; x <= x1; x++)
+                {
+                    var dx = x - center.X;
+                    var dy = y - center.Y;
+                    if (dx * dx + dy * dy > radius * radius) continue;
+                    mask[y * w + x] = protect ? (byte)255 : (byte)0;
+                }
+            }
+        }
+        return mask;
+    }
 }

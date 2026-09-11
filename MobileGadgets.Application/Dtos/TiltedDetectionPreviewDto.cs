@@ -15,5 +15,13 @@ public class TiltedDetectionPreviewDto
     public string OverlayImageUrl { get; set; } = string.Empty;
     public string DesignQuadJson { get; set; } = string.Empty;
     public string CaseBboxJson { get; set; } = string.Empty;
-    public bool CoverCameraPlate { get; set; }
+
+    /// <summary>The camera area's editable outline, as real points — the admin's point editor
+    /// works directly on this (drag/add/remove), not on CameraMaskImageUrl. Auto-detection seeds
+    /// it with an already-close guess. Serialized List&lt;TiltedPoint&gt;.</summary>
+    public string CameraOutlinePointsJson { get; set; } = string.Empty;
+
+    /// <summary>Admin-placed local overrides beyond the main outline (protect/allow spots — see
+    /// CameraSpot). Empty array ("[]") until the admin adds one. Serialized List&lt;CameraSpot&gt;.</summary>
+    public string CameraSpotsJson { get; set; } = "[]";
 }

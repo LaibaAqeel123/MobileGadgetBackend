@@ -1,3 +1,4 @@
+using System.Text.Json;
 using MobileGadgets.Application.Dtos;
 using MobileGadgets.Application.Interfaces;
 using MobileGadgets.Domain;
@@ -48,9 +49,8 @@ public class HeroModelService : IHeroModelService
             OverlayImageUrl = request.OverlayImageUrl,
             DesignQuadJson = request.DesignQuadJson,
             CaseBboxJson = request.CaseBboxJson,
-            CameraRoundR = request.CameraRoundR,
-            CameraPadPx = request.CameraPadPx,
-            CoverCameraPlate = request.CoverCameraPlate,
+            CameraOutlinePointsJson = request.CameraOutlinePointsJson,
+            CameraSpotsJson = request.CameraSpotsJson,
             CreatedAt = DateTime.UtcNow,
         };
 
@@ -74,9 +74,8 @@ public class HeroModelService : IHeroModelService
         model.OverlayImageUrl = request.OverlayImageUrl;
         model.DesignQuadJson = request.DesignQuadJson;
         model.CaseBboxJson = request.CaseBboxJson;
-        model.CameraRoundR = request.CameraRoundR;
-        model.CameraPadPx = request.CameraPadPx;
-        model.CoverCameraPlate = request.CoverCameraPlate;
+        model.CameraOutlinePointsJson = request.CameraOutlinePointsJson;
+        model.CameraSpotsJson = request.CameraSpotsJson;
 
         await _repository.SaveChangesAsync();
         return ToDto(model);
@@ -92,8 +91,7 @@ public class HeroModelService : IHeroModelService
         return true;
     }
 
-    public async Task<TiltedDetectionPreviewDto> DetectTiltedAsync(
-        Stream photo, double? cameraRoundR = null, double? cameraPadPx = null, bool coverCameraPlate = false)
+    public async Task<TiltedDetectionPreviewDto> DetectTiltedAsync(Stream photo)
     {
         // Buffer once: TiltedDetectionService needs to read the photo for detection, and it's
         // saved as BaseImageUrl separately so the frontend never has to upload it twice.
@@ -103,7 +101,7 @@ public class HeroModelService : IHeroModelService
         var baseImageUrl = await _imageStorage.SaveImageAsync(photoBuffer, "tilted-base.png");
         photoBuffer.Position = 0;
 
-        var result = await _tiltedDetection.DetectAsync(photoBuffer, cameraRoundR ?? 25, cameraPadPx ?? 15, coverCameraPlate);
+        var result = await _tiltedDetection.DetectAsync(photoBuffer);
 
         await using var silhouetteStream = new MemoryStream(result.SilhouettePng);
         await using var cameraMaskStream = new MemoryStream(result.CameraMaskPng);
@@ -119,9 +117,10 @@ public class HeroModelService : IHeroModelService
             SilhouetteImageUrl = silhouetteUrl,
             CameraMaskImageUrl = cameraMaskUrl,
             OverlayImageUrl = overlayUrl,
-            DesignQuadJson = System.Text.Json.JsonSerializer.Serialize(result.Quad),
-            CaseBboxJson = System.Text.Json.JsonSerializer.Serialize(result.Bbox),
-            CoverCameraPlate = coverCameraPlate,
+            DesignQuadJson = JsonSerializer.Serialize(result.Quad),
+            CaseBboxJson = JsonSerializer.Serialize(result.Bbox),
+            CameraOutlinePointsJson = JsonSerializer.Serialize(result.CameraOutlinePoints),
+            CameraSpotsJson = "[]",
         };
     }
 
@@ -132,10 +131,18 @@ public class HeroModelService : IHeroModelService
         using var cameraMaskStream = _imageStorage.OpenRead(preview.CameraMaskImageUrl);
         using var overlayStream = _imageStorage.OpenRead(preview.OverlayImageUrl);
 
-        var quad = System.Text.Json.JsonSerializer.Deserialize<TiltedQuad>(preview.DesignQuadJson);
-        var bbox = System.Text.Json.JsonSerializer.Deserialize<TiltedBbox>(preview.CaseBboxJson);
+        var quad = JsonSerializer.Deserialize<TiltedQuad>(preview.DesignQuadJson);
+        var bbox = JsonSerializer.Deserialize<TiltedBbox>(preview.CaseBboxJson);
 
         return await _tiltedRenderer.RenderAsync(baseStream, silhouetteStream, cameraMaskStream, overlayStream, sampleDesign, quad, bbox);
+    }
+
+    public async Task<string> BakeCameraMaskAsync(string baseImageUrl, string cameraOutlinePointsJson, string cameraSpotsJson)
+    {
+        using var baseStream = _imageStorage.OpenRead(baseImageUrl);
+        var maskPng = await _tiltedDetection.BakeCameraMaskAsync(baseStream, cameraOutlinePointsJson, cameraSpotsJson);
+        await using var maskStream = new MemoryStream(maskPng);
+        return await _imageStorage.SaveImageAsync(maskStream, "tilted-cameramask.png");
     }
 
     private static HeroModelDto ToDto(HeroModel model) => new()
@@ -150,9 +157,8 @@ public class HeroModelService : IHeroModelService
         OverlayImageUrl = model.OverlayImageUrl,
         DesignQuadJson = model.DesignQuadJson,
         CaseBboxJson = model.CaseBboxJson,
-        CameraRoundR = model.CameraRoundR,
-        CameraPadPx = model.CameraPadPx,
-        CoverCameraPlate = model.CoverCameraPlate,
+        CameraOutlinePointsJson = model.CameraOutlinePointsJson,
+        CameraSpotsJson = model.CameraSpotsJson,
         CreatedAt = model.CreatedAt,
     };
 }

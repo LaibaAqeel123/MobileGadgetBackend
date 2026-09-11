@@ -19,9 +19,8 @@ public class CreateHeroModelRequest
     /// <summary>Tilted only — the case bbox from the same preview step. Null/ignored for Straight.</summary>
     public string? CaseBboxJson { get; set; }
 
-    /// <summary>Tilted only — admin overrides carried through from the preview step, if the admin
-    /// nudged them. Null uses TiltedDetectionService's own defaults on every future render.</summary>
-    public double? CameraRoundR { get; set; }
-    public double? CameraPadPx { get; set; }
-    public bool CoverCameraPlate { get; set; }
+    /// <summary>Tilted only — the camera outline points/spots as last edited in the preview step.
+    /// Null/ignored for Straight.</summary>
+    public string? CameraOutlinePointsJson { get; set; }
+    public string? CameraSpotsJson { get; set; }
 }
