@@ -61,14 +61,15 @@ public class HeroModelsController : ControllerBase
     [Authorize(Roles = "Admin")]
     [RequestSizeLimit(50_000_000)]
     public async Task<IActionResult> DetectTilted(
-        IFormFile photo, [FromForm] double? cameraRoundR = null, [FromForm] double? cameraPadPx = null)
+        IFormFile photo, [FromForm] double? cameraRoundR = null, [FromForm] double? cameraPadPx = null,
+        [FromForm] bool coverCameraPlate = false)
     {
         if (photo.Length == 0) return BadRequest(new { error = "No photo file provided." });
 
         try
         {
             await using var photoStream = photo.OpenReadStream();
-            var result = await _heroModelService.DetectTiltedAsync(photoStream, cameraRoundR, cameraPadPx);
+            var result = await _heroModelService.DetectTiltedAsync(photoStream, cameraRoundR, cameraPadPx, coverCameraPlate);
             return Ok(result);
         }
         catch (InvalidOperationException ex)

@@ -16,5 +16,6 @@ public class HeroModelDto
     public string? CaseBboxJson { get; set; }
     public double? CameraRoundR { get; set; }
     public double? CameraPadPx { get; set; }
+    public bool CoverCameraPlate { get; set; }
     public DateTime CreatedAt { get; set; }
 }

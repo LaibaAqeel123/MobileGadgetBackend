@@ -50,6 +50,7 @@ public class HeroModelService : IHeroModelService
             CaseBboxJson = request.CaseBboxJson,
             CameraRoundR = request.CameraRoundR,
             CameraPadPx = request.CameraPadPx,
+            CoverCameraPlate = request.CoverCameraPlate,
             CreatedAt = DateTime.UtcNow,
         };
 
@@ -75,6 +76,7 @@ public class HeroModelService : IHeroModelService
         model.CaseBboxJson = request.CaseBboxJson;
         model.CameraRoundR = request.CameraRoundR;
         model.CameraPadPx = request.CameraPadPx;
+        model.CoverCameraPlate = request.CoverCameraPlate;
 
         await _repository.SaveChangesAsync();
         return ToDto(model);
@@ -90,7 +92,8 @@ public class HeroModelService : IHeroModelService
         return true;
     }
 
-    public async Task<TiltedDetectionPreviewDto> DetectTiltedAsync(Stream photo, double? cameraRoundR = null, double? cameraPadPx = null)
+    public async Task<TiltedDetectionPreviewDto> DetectTiltedAsync(
+        Stream photo, double? cameraRoundR = null, double? cameraPadPx = null, bool coverCameraPlate = false)
     {
         // Buffer once: TiltedDetectionService needs to read the photo for detection, and it's
         // saved as BaseImageUrl separately so the frontend never has to upload it twice.
@@ -100,9 +103,7 @@ public class HeroModelService : IHeroModelService
         var baseImageUrl = await _imageStorage.SaveImageAsync(photoBuffer, "tilted-base.png");
         photoBuffer.Position = 0;
 
-        var result = cameraRoundR is null && cameraPadPx is null
-            ? await _tiltedDetection.DetectAsync(photoBuffer)
-            : await _tiltedDetection.DetectAsync(photoBuffer, cameraRoundR ?? 18, cameraPadPx ?? 20);
+        var result = await _tiltedDetection.DetectAsync(photoBuffer, cameraRoundR ?? 18, cameraPadPx ?? 20, coverCameraPlate);
 
         await using var silhouetteStream = new MemoryStream(result.SilhouettePng);
         await using var cameraMaskStream = new MemoryStream(result.CameraMaskPng);
@@ -120,6 +121,7 @@ public class HeroModelService : IHeroModelService
             OverlayImageUrl = overlayUrl,
             DesignQuadJson = System.Text.Json.JsonSerializer.Serialize(result.Quad),
             CaseBboxJson = System.Text.Json.JsonSerializer.Serialize(result.Bbox),
+            CoverCameraPlate = coverCameraPlate,
         };
     }
 
@@ -150,6 +152,7 @@ public class HeroModelService : IHeroModelService
         CaseBboxJson = model.CaseBboxJson,
         CameraRoundR = model.CameraRoundR,
         CameraPadPx = model.CameraPadPx,
+        CoverCameraPlate = model.CoverCameraPlate,
         CreatedAt = model.CreatedAt,
     };
 }

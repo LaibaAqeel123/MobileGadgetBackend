@@ -46,7 +46,8 @@ public class TiltedDetectionService : ITiltedDetectionService
     /// rather than a genuine tiny phone.</summary>
     private const double MinPlausibleBodyAreaFrac = 0.03;
 
-    public async Task<TiltedDetectionResult> DetectAsync(Stream basePhoto, double cameraRoundR = 18, double cameraPadPx = 20)
+    public async Task<TiltedDetectionResult> DetectAsync(
+        Stream basePhoto, double cameraRoundR = 18, double cameraPadPx = 20, bool coverCameraPlate = false)
     {
         var full = await RgbaImage.LoadAsync(basePhoto);
         int w = full.Width, h = full.Height;
@@ -65,7 +66,7 @@ public class TiltedDetectionService : ITiltedDetectionService
                 "Try a photo with a cleaner, darker background and a well-lit case.");
 
         var quad = FitCaseQuad(body, w, h);
-        var (holeMaskFull, clusters) = BuildCameraHoleMask(lum, w, h, cameraRoundR, cameraPadPx);
+        var (holeMaskFull, clusters) = BuildCameraHoleMask(lum, w, h, cameraRoundR, cameraPadPx, coverCameraPlate);
 
         var silhouettePng = await BuildMaskImage(body, w, h).ToPngBytesAsync();
         var cameraMaskPng = await holeMaskFull.ToPngBytesAsync();
@@ -184,9 +185,19 @@ public class TiltedDetectionService : ITiltedDetectionService
 
     /// <summary>Finds the camera-hole cluster(s) and rasterizes their padded/rounded exclusion
     /// shapes into one mask image. See Geometry2D.ClusterCompactComponents for why proximity alone
-    /// isn't enough (a nearby button slot must never merge with the actual camera module).</summary>
+    /// isn't enough (a nearby button slot must never merge with the actual camera module).
+    ///
+    /// <paramref name="coverCameraPlate"/> decides what gets excluded around a real lens/flash: by
+    /// default (false), the WHOLE module cluster — lenses plus the raised plate/trim around them —
+    /// stays in its real photographed color, correct for a case whose camera trim is a genuinely
+    /// separate material/color from the body. Confirmed wrong on a real one-piece silicone case,
+    /// though (Model Manager screenshot, 2026-09-11): that whole case is molded from one uniform
+    /// color, so leaving the plate in its original white read as a mismatched patch instead of part
+    /// of the product. Set true for that case: only the individual lens/flash holes themselves stay
+    /// excluded (each with its own small, tight margin), and the design flows across the rest of
+    /// the plate exactly like the rest of the body.</summary>
     private static (RgbaImage Mask, List<List<int>> Clusters) BuildCameraHoleMask(
-        double[] lum, int w, int h, double mainRoundR, double mainPadPx)
+        double[] lum, int w, int h, double mainRoundR, double mainPadPx, bool coverCameraPlate)
     {
         var dark = new byte[w * h];
         for (var i = 0; i < w * h; i++) dark[i] = (byte)(lum[i] < BrightnessThreshold ? 1 : 0);
@@ -195,13 +206,15 @@ public class TiltedDetectionService : ITiltedDetectionService
         for (var i = 0; i < w * h; i++) enclosed[i] = (byte)(dark[i] != 0 && reach[i] == 0 ? 1 : 0);
 
         var components = ComponentsAboveArea(enclosed, w, h, MinHoleComponentArea);
-        var clusters = ClusterCompactComponents(components, w);
+        // Each raw component (one lens, the flash, etc.) becomes its own small exclusion instead
+        // of merging into one big plate shape -- same components, just not clustered together.
+        var clusters = coverCameraPlate ? components : ClusterCompactComponents(components, w);
 
         var mask = new RgbaImage(w, h);
         for (var ci = 0; ci < clusters.Count; ci++)
         {
-            var padPx = ci == 0 ? mainPadPx : 12;
-            var roundR = ci == 0 ? mainRoundR : 10;
+            var padPx = coverCameraPlate ? 6 : ci == 0 ? mainPadPx : 12;
+            var roundR = coverCameraPlate ? 6 : ci == 0 ? mainRoundR : 10;
             var test = BuildRoundedExclusion(clusters[ci], w, padPx, roundR);
             for (var y = 0; y < h; y++)
             {

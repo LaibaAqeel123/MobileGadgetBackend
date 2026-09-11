@@ -39,5 +39,12 @@ public class HeroModel
     public double? CameraRoundR { get; set; }
     public double? CameraPadPx { get; set; }
 
+    /// <summary>Tilted only: false (default) keeps the whole camera module area (lenses + the
+    /// raised plate/trim around them) in its real photographed color — correct when that trim is
+    /// a genuinely different material/color from the body. True prints the design across the
+    /// plate too, excluding only the individual lens/flash holes — correct for a one-piece case
+    /// molded in a single uniform color.</summary>
+    public bool CoverCameraPlate { get; set; }
+
     public DateTime CreatedAt { get; set; }
 }

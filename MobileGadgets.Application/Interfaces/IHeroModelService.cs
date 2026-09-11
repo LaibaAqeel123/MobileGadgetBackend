@@ -16,7 +16,8 @@ public interface IHeroModelService
     /// Create/Update (with PoseType=Tilted and these same values) to actually save it.
     /// cameraRoundR/cameraPadPx let the admin re-run detection with a nudged camera-area
     /// roundness/margin after seeing a first preview come out slightly off.</summary>
-    Task<TiltedDetectionPreviewDto> DetectTiltedAsync(Stream photo, double? cameraRoundR = null, double? cameraPadPx = null);
+    Task<TiltedDetectionPreviewDto> DetectTiltedAsync(
+        Stream photo, double? cameraRoundR = null, double? cameraPadPx = null, bool coverCameraPlate = false);
 
     /// <summary>Renders one test composite from an in-progress (not-yet-saved) Tilted detection
     /// preview, so the admin can see an actual "design applied to the case" image — not just the

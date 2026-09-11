@@ -23,4 +23,5 @@ public class CreateHeroModelRequest
     /// nudged them. Null uses TiltedDetectionService's own defaults on every future render.</summary>
     public double? CameraRoundR { get; set; }
     public double? CameraPadPx { get; set; }
+    public bool CoverCameraPlate { get; set; }
 }

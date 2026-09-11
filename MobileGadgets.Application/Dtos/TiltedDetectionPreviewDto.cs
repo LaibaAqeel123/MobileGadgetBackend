@@ -15,4 +15,5 @@ public class TiltedDetectionPreviewDto
     public string OverlayImageUrl { get; set; } = string.Empty;
     public string DesignQuadJson { get; set; } = string.Empty;
     public string CaseBboxJson { get; set; } = string.Empty;
+    public bool CoverCameraPlate { get; set; }
 }
