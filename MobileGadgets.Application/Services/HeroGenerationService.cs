@@ -1,3 +1,4 @@
+using System.Text.Json;
 using MobileGadgets.Application.Dtos;
 using MobileGadgets.Application.Interfaces;
 using MobileGadgets.Domain;
@@ -11,19 +12,22 @@ public class HeroGenerationService : IHeroGenerationService
     private readonly ISceneRepository _sceneRepository;
     private readonly IImageStorageService _imageStorage;
     private readonly IHeroImageRenderer _renderer;
+    private readonly ITiltedHeroImageRenderer _tiltedRenderer;
 
     public HeroGenerationService(
         IHeroGenerationRepository generationRepository,
         IHeroModelRepository heroModelRepository,
         ISceneRepository sceneRepository,
         IImageStorageService imageStorage,
-        IHeroImageRenderer renderer)
+        IHeroImageRenderer renderer,
+        ITiltedHeroImageRenderer tiltedRenderer)
     {
         _generationRepository = generationRepository;
         _heroModelRepository = heroModelRepository;
         _sceneRepository = sceneRepository;
         _imageStorage = imageStorage;
         _renderer = renderer;
+        _tiltedRenderer = tiltedRenderer;
     }
 
     public async Task<List<HeroGenerationDto>> GetAllAsync()
@@ -54,10 +58,6 @@ public class HeroGenerationService : IHeroGenerationService
         var model = await _heroModelRepository.GetByIdAsync(heroModelId)
             ?? throw new KeyNotFoundException($"HeroModel {heroModelId} not found.");
 
-        var scene = sceneId is null
-            ? await _sceneRepository.GetDefaultAsync()
-            : await _sceneRepository.GetByIdAsync(sceneId.Value) ?? throw new KeyNotFoundException($"Scene {sceneId} not found.");
-
         // Buffer the design once so it can be saved permanently AND fed to the renderer.
         var designBuffer = new MemoryStream();
         await designContent.CopyToAsync(designBuffer);
@@ -66,7 +66,8 @@ public class HeroGenerationService : IHeroGenerationService
         designBuffer.Position = 0;
 
         // A customer-uploaded background overrides the Scene's own background (colour or preset
-        // photo) for this render only, same buffer-then-save-then-rewind pattern as the design.
+        // photo), or Tilted's own real photo background, for this render only — same buffer-then-
+        // save-then-rewind pattern as the design either way.
         string? customBackgroundUrl = null;
         MemoryStream? customBackgroundBuffer = null;
         if (customBackground is not null)
@@ -78,23 +79,37 @@ public class HeroGenerationService : IHeroGenerationService
             customBackgroundBuffer.Position = 0;
         }
 
-        using var baseStream = _imageStorage.OpenRead(model.BaseImageUrl);
-        using var cameraMaskStream = _imageStorage.OpenRead(model.CameraMaskImageUrl);
-        using var overlayStream = _imageStorage.OpenRead(model.OverlayImageUrl);
+        byte[] png;
+        Scene scene;
+        if (model.PoseType == HeroModelPoseType.Tilted)
+        {
+            (png, scene) = await GenerateTiltedAsync(model, designBuffer, sceneId, customBackgroundBuffer);
+        }
+        else
+        {
+            scene = sceneId is null
+                ? await _sceneRepository.GetDefaultAsync()
+                : await _sceneRepository.GetByIdAsync(sceneId.Value) ?? throw new KeyNotFoundException($"Scene {sceneId} not found.");
 
-        // No custom upload: fall back to the Scene's own preset photo, if it has one.
-        Stream? backgroundStream = customBackgroundBuffer;
-        using var presetBackgroundStream = backgroundStream is null && scene.BackgroundImageUrl is not null
-            ? _imageStorage.OpenRead(scene.BackgroundImageUrl)
-            : null;
-        backgroundStream ??= presetBackgroundStream;
+            using var baseStream = _imageStorage.OpenRead(model.BaseImageUrl);
+            using var cameraMaskStream = _imageStorage.OpenRead(model.CameraMaskImageUrl);
+            using var overlayStream = _imageStorage.OpenRead(model.OverlayImageUrl);
 
-        // A separate, untracked copy carries the angle override into the renderer — mutating
-        // `scene` directly would risk EF Core persisting the override back into that Scene's row
-        // for every future generation, since it's still a tracked entity on this DbContext.
-        var renderScene = yawDegrees is null ? scene : CloneWithYaw(scene, Math.Clamp(yawDegrees.Value, -MaxYawDegrees, MaxYawDegrees));
+            // No custom upload: fall back to the Scene's own preset photo, if it has one.
+            Stream? backgroundStream = customBackgroundBuffer;
+            using var presetBackgroundStream = backgroundStream is null && scene.BackgroundImageUrl is not null
+                ? _imageStorage.OpenRead(scene.BackgroundImageUrl)
+                : null;
+            backgroundStream ??= presetBackgroundStream;
 
-        var png = await _renderer.RenderAsync(baseStream, cameraMaskStream, overlayStream, designBuffer, renderScene, backgroundStream);
+            // A separate, untracked copy carries the angle override into the renderer — mutating
+            // `scene` directly would risk EF Core persisting the override back into that Scene's
+            // row for every future generation, since it's still a tracked entity on this DbContext.
+            var renderScene = yawDegrees is null ? scene : CloneWithYaw(scene, Math.Clamp(yawDegrees.Value, -MaxYawDegrees, MaxYawDegrees));
+
+            png = await _renderer.RenderAsync(baseStream, cameraMaskStream, overlayStream, designBuffer, renderScene, backgroundStream);
+        }
+
         await (customBackgroundBuffer?.DisposeAsync() ?? ValueTask.CompletedTask);
 
         await using var outputStream = new MemoryStream(png);
@@ -114,6 +129,44 @@ public class HeroGenerationService : IHeroGenerationService
         await _generationRepository.SaveChangesAsync();
 
         return ToDto(generation);
+    }
+
+    /// <summary>Tilted has no synthetic scene, so a Scene here only ever supplies a background
+    /// choice, never a pose. Background precedence: a customer-uploaded photo always wins; failing
+    /// that, an explicitly-chosen Scene's own preset background photo; failing that (the common
+    /// case — no sceneId given), the base photo's own real, original background stays untouched,
+    /// which is the safest and most photographically convincing default (see
+    /// TiltedHeroImageRenderer — passing swapBackground: null keeps it). HeroGeneration.SceneId is
+    /// a required FK regardless, so the resolved default Scene is still recorded even when this
+    /// generation didn't swap anything.</summary>
+    private async Task<(byte[] Png, Scene Scene)> GenerateTiltedAsync(
+        HeroModel model, MemoryStream designBuffer, int? sceneId, MemoryStream? customBackgroundBuffer)
+    {
+        var scene = sceneId is null
+            ? await _sceneRepository.GetDefaultAsync()
+            : await _sceneRepository.GetByIdAsync(sceneId.Value) ?? throw new KeyNotFoundException($"Scene {sceneId} not found.");
+
+        Stream? swapBackground = customBackgroundBuffer;
+        using var presetBackgroundStream = swapBackground is null && sceneId is not null && scene.BackgroundImageUrl is not null
+            ? _imageStorage.OpenRead(scene.BackgroundImageUrl)
+            : null;
+        swapBackground ??= presetBackgroundStream;
+
+        var quad = JsonSerializer.Deserialize<TiltedQuad>(model.DesignQuadJson
+            ?? throw new InvalidOperationException($"Tilted HeroModel {model.Id} is missing DesignQuadJson."));
+        var bbox = JsonSerializer.Deserialize<TiltedBbox>(model.CaseBboxJson
+            ?? throw new InvalidOperationException($"Tilted HeroModel {model.Id} is missing CaseBboxJson."));
+
+        using var baseStream = _imageStorage.OpenRead(model.BaseImageUrl);
+        using var silhouetteStream = _imageStorage.OpenRead(model.DesignMaskImageUrl);
+        using var cameraMaskStream = _imageStorage.OpenRead(model.CameraMaskImageUrl);
+        using var overlayStream = _imageStorage.OpenRead(model.OverlayImageUrl);
+
+        var png = await _tiltedRenderer.RenderAsync(
+            baseStream, silhouetteStream, cameraMaskStream, overlayStream, designBuffer,
+            quad, bbox, swapBackground);
+
+        return (png, scene);
     }
 
     private static Scene CloneWithYaw(Scene scene, double yawDegrees) => new()

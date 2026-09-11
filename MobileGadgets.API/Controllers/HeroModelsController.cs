@@ -50,4 +50,30 @@ public class HeroModelsController : ControllerBase
         var deleted = await _heroModelService.DeleteAsync(id);
         return deleted ? NoContent() : NotFound();
     }
+
+    /// <summary>Admin-only preview step for a Tilted HeroModel: runs auto-detection on an uploaded
+    /// photo and returns the resulting masks + geometry. Saves nothing — the admin reviews this
+    /// preview (with a test design, client-side) and only persists it by calling Create/Update
+    /// afterward with PoseType=Tilted and these same values. cameraRoundR/cameraPadPx let the
+    /// admin re-run this with a nudged camera-area roundness/margin if the first preview isn't
+    /// quite right for this particular photo.</summary>
+    [HttpPost("detect-tilted")]
+    [Authorize(Roles = "Admin")]
+    [RequestSizeLimit(50_000_000)]
+    public async Task<IActionResult> DetectTilted(
+        IFormFile photo, [FromForm] double? cameraRoundR = null, [FromForm] double? cameraPadPx = null)
+    {
+        if (photo.Length == 0) return BadRequest(new { error = "No photo file provided." });
+
+        try
+        {
+            await using var photoStream = photo.OpenReadStream();
+            var result = await _heroModelService.DetectTiltedAsync(photoStream, cameraRoundR, cameraPadPx);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
 }

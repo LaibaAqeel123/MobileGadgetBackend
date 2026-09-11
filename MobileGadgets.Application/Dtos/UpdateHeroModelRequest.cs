@@ -12,4 +12,7 @@ public class UpdateHeroModelRequest
     public string CameraMaskImageUrl { get; set; } = string.Empty;
     public string OverlayImageUrl { get; set; } = string.Empty;
     public string? DesignQuadJson { get; set; }
+    public string? CaseBboxJson { get; set; }
+    public double? CameraRoundR { get; set; }
+    public double? CameraPadPx { get; set; }
 }

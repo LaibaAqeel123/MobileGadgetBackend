@@ -75,6 +75,15 @@ namespace MobileGadgets.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<double?>("CameraPadPx")
+                        .HasColumnType("float");
+
+                    b.Property<double?>("CameraRoundR")
+                        .HasColumnType("float");
+
+                    b.Property<string>("CaseBboxJson")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("CaseType")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");

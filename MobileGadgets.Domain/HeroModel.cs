@@ -26,5 +26,18 @@ public class HeroModel
     /// Straight models.</summary>
     public string? DesignQuadJson { get; set; }
 
+    /// <summary>Tilted only: the detected case body's bounding box in BaseImageUrl's own pixel
+    /// space (JSON-serialized TiltedBbox). Needed at generation time only for the background-swap
+    /// render tier, to size/position the cut-out case against the new backdrop. Null for Straight.</summary>
+    public string? CaseBboxJson { get; set; }
+
+    /// <summary>Tilted only, admin-tunable per model: the camera area's corner roundness and
+    /// safety margin in pixels. Every real module's corner radius genuinely differs a little
+    /// model to model — rather than require the automatic default to be pixel-perfect on every
+    /// photo, the admin can nudge these two numbers after seeing the preview and re-run detection.
+    /// Null uses TiltedDetectionService's own defaults.</summary>
+    public double? CameraRoundR { get; set; }
+    public double? CameraPadPx { get; set; }
+
     public DateTime CreatedAt { get; set; }
 }
