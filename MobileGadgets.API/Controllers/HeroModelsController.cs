@@ -76,4 +76,37 @@ public class HeroModelsController : ControllerBase
             return BadRequest(new { error = ex.Message });
         }
     }
+
+    /// <summary>Renders one test composite from an in-progress (not-yet-saved) Tilted preview —
+    /// pass back the exact TiltedDetectionPreviewDto detect-tilted just returned, plus any sample
+    /// design image, and get back an actual rendered PNG to show the admin before they decide to
+    /// save. Saves nothing except the rendered preview image itself.</summary>
+    [HttpPost("preview-tilted")]
+    [Authorize(Roles = "Admin")]
+    [RequestSizeLimit(50_000_000)]
+    public async Task<IActionResult> PreviewTilted(
+        [FromForm] string baseImageUrl,
+        [FromForm] string silhouetteImageUrl,
+        [FromForm] string cameraMaskImageUrl,
+        [FromForm] string overlayImageUrl,
+        [FromForm] string designQuadJson,
+        [FromForm] string caseBboxJson,
+        IFormFile design)
+    {
+        if (design.Length == 0) return BadRequest(new { error = "No design file provided." });
+
+        var preview = new TiltedDetectionPreviewDto
+        {
+            BaseImageUrl = baseImageUrl,
+            SilhouetteImageUrl = silhouetteImageUrl,
+            CameraMaskImageUrl = cameraMaskImageUrl,
+            OverlayImageUrl = overlayImageUrl,
+            DesignQuadJson = designQuadJson,
+            CaseBboxJson = caseBboxJson,
+        };
+
+        await using var designStream = design.OpenReadStream();
+        var png = await _heroModelService.PreviewTiltedRenderAsync(preview, designStream);
+        return File(png, "image/png");
+    }
 }

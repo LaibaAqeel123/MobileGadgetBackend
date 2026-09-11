@@ -9,15 +9,18 @@ public class HeroModelService : IHeroModelService
     private readonly IHeroModelRepository _repository;
     private readonly IImageStorageService _imageStorage;
     private readonly ITiltedDetectionService _tiltedDetection;
+    private readonly ITiltedHeroImageRenderer _tiltedRenderer;
 
     public HeroModelService(
         IHeroModelRepository repository,
         IImageStorageService imageStorage,
-        ITiltedDetectionService tiltedDetection)
+        ITiltedDetectionService tiltedDetection,
+        ITiltedHeroImageRenderer tiltedRenderer)
     {
         _repository = repository;
         _imageStorage = imageStorage;
         _tiltedDetection = tiltedDetection;
+        _tiltedRenderer = tiltedRenderer;
     }
 
     public async Task<List<HeroModelDto>> GetAllAsync()
@@ -89,9 +92,17 @@ public class HeroModelService : IHeroModelService
 
     public async Task<TiltedDetectionPreviewDto> DetectTiltedAsync(Stream photo, double? cameraRoundR = null, double? cameraPadPx = null)
     {
+        // Buffer once: TiltedDetectionService needs to read the photo for detection, and it's
+        // saved as BaseImageUrl separately so the frontend never has to upload it twice.
+        var photoBuffer = new MemoryStream();
+        await photo.CopyToAsync(photoBuffer);
+        photoBuffer.Position = 0;
+        var baseImageUrl = await _imageStorage.SaveImageAsync(photoBuffer, "tilted-base.png");
+        photoBuffer.Position = 0;
+
         var result = cameraRoundR is null && cameraPadPx is null
-            ? await _tiltedDetection.DetectAsync(photo)
-            : await _tiltedDetection.DetectAsync(photo, cameraRoundR ?? 18, cameraPadPx ?? 20);
+            ? await _tiltedDetection.DetectAsync(photoBuffer)
+            : await _tiltedDetection.DetectAsync(photoBuffer, cameraRoundR ?? 18, cameraPadPx ?? 20);
 
         await using var silhouetteStream = new MemoryStream(result.SilhouettePng);
         await using var cameraMaskStream = new MemoryStream(result.CameraMaskPng);
@@ -103,12 +114,26 @@ public class HeroModelService : IHeroModelService
 
         return new TiltedDetectionPreviewDto
         {
+            BaseImageUrl = baseImageUrl,
             SilhouetteImageUrl = silhouetteUrl,
             CameraMaskImageUrl = cameraMaskUrl,
             OverlayImageUrl = overlayUrl,
             DesignQuadJson = System.Text.Json.JsonSerializer.Serialize(result.Quad),
             CaseBboxJson = System.Text.Json.JsonSerializer.Serialize(result.Bbox),
         };
+    }
+
+    public async Task<byte[]> PreviewTiltedRenderAsync(TiltedDetectionPreviewDto preview, Stream sampleDesign)
+    {
+        using var baseStream = _imageStorage.OpenRead(preview.BaseImageUrl);
+        using var silhouetteStream = _imageStorage.OpenRead(preview.SilhouetteImageUrl);
+        using var cameraMaskStream = _imageStorage.OpenRead(preview.CameraMaskImageUrl);
+        using var overlayStream = _imageStorage.OpenRead(preview.OverlayImageUrl);
+
+        var quad = System.Text.Json.JsonSerializer.Deserialize<TiltedQuad>(preview.DesignQuadJson);
+        var bbox = System.Text.Json.JsonSerializer.Deserialize<TiltedBbox>(preview.CaseBboxJson);
+
+        return await _tiltedRenderer.RenderAsync(baseStream, silhouetteStream, cameraMaskStream, overlayStream, sampleDesign, quad, bbox);
     }
 
     private static HeroModelDto ToDto(HeroModel model) => new()

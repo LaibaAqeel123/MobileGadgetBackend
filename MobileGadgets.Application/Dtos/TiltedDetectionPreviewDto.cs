@@ -7,6 +7,9 @@ namespace MobileGadgets.Application.Dtos;
 /// this endpoint alone never creates or changes a HeroModel.</summary>
 public class TiltedDetectionPreviewDto
 {
+    /// <summary>The admin's original uploaded photo, saved once here so the frontend never has to
+    /// upload it a second time to save the model or to request a rendered preview.</summary>
+    public string BaseImageUrl { get; set; } = string.Empty;
     public string SilhouetteImageUrl { get; set; } = string.Empty;
     public string CameraMaskImageUrl { get; set; } = string.Empty;
     public string OverlayImageUrl { get; set; } = string.Empty;

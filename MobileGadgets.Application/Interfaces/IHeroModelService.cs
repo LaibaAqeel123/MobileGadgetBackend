@@ -17,4 +17,11 @@ public interface IHeroModelService
     /// cameraRoundR/cameraPadPx let the admin re-run detection with a nudged camera-area
     /// roundness/margin after seeing a first preview come out slightly off.</summary>
     Task<TiltedDetectionPreviewDto> DetectTiltedAsync(Stream photo, double? cameraRoundR = null, double? cameraPadPx = null);
+
+    /// <summary>Renders one test composite from an in-progress (not-yet-saved) Tilted detection
+    /// preview, so the admin can see an actual "design applied to the case" image — not just the
+    /// raw mask thumbnails — before deciding whether to save or nudge the roundness/margin and
+    /// re-detect. Reads the already-saved base photo + masks by URL (from a prior
+    /// DetectTiltedAsync call); saves nothing new itself except the rendered preview image.</summary>
+    Task<byte[]> PreviewTiltedRenderAsync(TiltedDetectionPreviewDto preview, Stream sampleDesign);
 }
