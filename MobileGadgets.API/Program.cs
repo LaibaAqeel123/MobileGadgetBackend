@@ -26,6 +26,8 @@ builder.Services.AddScoped<IImageStorageService, LocalImageStorageService>();
 builder.Services.AddScoped<IHeroModelRepository, HeroModelRepository>();
 builder.Services.AddScoped<IHeroModelService, HeroModelService>();
 builder.Services.AddScoped<IHeroImageRenderer, HeroImageRenderer>();
+builder.Services.AddScoped<ITiltedDetectionService, TiltedDetectionService>();
+builder.Services.AddScoped<ITiltedHeroImageRenderer, TiltedHeroImageRenderer>();
 builder.Services.AddScoped<IHeroGenerationRepository, HeroGenerationRepository>();
 builder.Services.AddScoped<IHeroGenerationService, HeroGenerationService>();
 builder.Services.AddScoped<ISceneRepository, SceneRepository>();
