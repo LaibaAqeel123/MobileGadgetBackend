@@ -29,4 +29,11 @@ public interface ITiltedHeroImageRenderer
         TiltedBbox caseBbox,
         string cameraSpotsJson,
         Stream? swapBackground = null);
+
+    /// <summary>Synthesizes a plain vertical-gradient background image (top/bottom hex colors),
+    /// sized to match the swap-background canvas — for a Scene that carries only colors and no
+    /// preset photo (a plain color/gradient preset). An admin explicitly choosing that preset
+    /// should see that color as the background, not silently fall back to the case's original
+    /// photographed background — that fallback is only correct when no Scene was chosen at all.</summary>
+    Task<byte[]> BuildGradientBackgroundAsync(string topColorHex, string bottomColorHex);
 }

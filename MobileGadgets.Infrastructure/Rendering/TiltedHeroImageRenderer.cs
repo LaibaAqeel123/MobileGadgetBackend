@@ -138,6 +138,29 @@ public class TiltedHeroImageRenderer : ITiltedHeroImageRenderer
         return await RenderWithSwappedBackground(designLayer, hwPatch, designQuad, caseBbox, w, h, swapBackground);
     }
 
+    public Task<byte[]> BuildGradientBackgroundAsync(string topColorHex, string bottomColorHex)
+    {
+        var top = ColorUtils.ParseHex(topColorHex);
+        var bottom = ColorUtils.ParseHex(bottomColorHex);
+        var img = new RgbaImage(OutW, OutH);
+        for (var y = 0; y < OutH; y++)
+        {
+            var t = (double)y / OutH;
+            var r = (byte)Math.Round(top.r + (bottom.r - top.r) * t);
+            var g = (byte)Math.Round(top.g + (bottom.g - top.g) * t);
+            var b = (byte)Math.Round(top.b + (bottom.b - top.b) * t);
+            for (var x = 0; x < OutW; x++)
+            {
+                var idx = (y * OutW + x) * 4;
+                img.Data[idx] = r;
+                img.Data[idx + 1] = g;
+                img.Data[idx + 2] = b;
+                img.Data[idx + 3] = 255;
+            }
+        }
+        return img.ToPngBytesAsync();
+    }
+
     private static async Task<byte[]> RenderWithSwappedBackground(
         RgbaImage designLayer, RgbaImage hwPatch, TiltedQuad designQuad, TiltedBbox caseBbox,
         int w, int h, Stream swapBackground)

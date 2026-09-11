@@ -133,12 +133,14 @@ public class HeroGenerationService : IHeroGenerationService
 
     /// <summary>Tilted has no synthetic scene, so a Scene here only ever supplies a background
     /// choice, never a pose. Background precedence: a customer-uploaded photo always wins; failing
-    /// that, an explicitly-chosen Scene's own preset background photo; failing that (the common
-    /// case — no sceneId given), the base photo's own real, original background stays untouched,
-    /// which is the safest and most photographically convincing default (see
-    /// TiltedHeroImageRenderer — passing swapBackground: null keeps it). HeroGeneration.SceneId is
-    /// a required FK regardless, so the resolved default Scene is still recorded even when this
-    /// generation didn't swap anything.</summary>
+    /// that, an explicitly-chosen Scene's own preset background photo; failing that, if a Scene WAS
+    /// explicitly chosen (sceneId given) it's a color/gradient-only preset (no photo attached) —
+    /// synthesize that color as the background rather than silently ignoring the admin's choice;
+    /// failing all of that (the common case — no sceneId given at all), the base photo's own real,
+    /// original background stays untouched, which is the safest and most photographically
+    /// convincing default (see TiltedHeroImageRenderer — passing swapBackground: null keeps it).
+    /// HeroGeneration.SceneId is a required FK regardless, so the resolved default Scene is still
+    /// recorded even when this generation didn't swap anything.</summary>
     private async Task<(byte[] Png, Scene Scene)> GenerateTiltedAsync(
         HeroModel model, MemoryStream designBuffer, int? sceneId, MemoryStream? customBackgroundBuffer)
     {
@@ -151,6 +153,12 @@ public class HeroGenerationService : IHeroGenerationService
             ? _imageStorage.OpenRead(scene.BackgroundImageUrl)
             : null;
         swapBackground ??= presetBackgroundStream;
+
+        byte[]? gradientBytes = swapBackground is null && sceneId is not null
+            ? await _tiltedRenderer.BuildGradientBackgroundAsync(scene.BackgroundTopColor, scene.BackgroundBottomColor)
+            : null;
+        using var gradientStream = gradientBytes is not null ? new MemoryStream(gradientBytes) : null;
+        swapBackground ??= gradientStream;
 
         var quad = JsonSerializer.Deserialize<TiltedQuad>(model.DesignQuadJson
             ?? throw new InvalidOperationException($"Tilted HeroModel {model.Id} is missing DesignQuadJson."));
