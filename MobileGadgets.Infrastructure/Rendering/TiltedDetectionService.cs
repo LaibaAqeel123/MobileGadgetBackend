@@ -47,7 +47,7 @@ public class TiltedDetectionService : ITiltedDetectionService
     private const double MinPlausibleBodyAreaFrac = 0.03;
 
     public async Task<TiltedDetectionResult> DetectAsync(
-        Stream basePhoto, double cameraRoundR = 18, double cameraPadPx = 20, bool coverCameraPlate = false)
+        Stream basePhoto, double cameraRoundR = 25, double cameraPadPx = 20, bool coverCameraPlate = false)
     {
         var full = await RgbaImage.LoadAsync(basePhoto);
         int w = full.Width, h = full.Height;
@@ -213,9 +213,12 @@ public class TiltedDetectionService : ITiltedDetectionService
         var mask = new RgbaImage(w, h);
         for (var ci = 0; ci < clusters.Count; ci++)
         {
+            // roundness is a PERCENT of the shape's own shorter side (see BuildRoundedExclusion) —
+            // a tight individual lens/flash hole is close to circular, so it wants a HIGH percent
+            // (near 100, i.e. "fully rounded") even though its pad is small in pixels.
             var padPx = coverCameraPlate ? 6 : ci == 0 ? mainPadPx : 12;
-            var roundR = coverCameraPlate ? 6 : ci == 0 ? mainRoundR : 10;
-            var test = BuildRoundedExclusion(clusters[ci], w, padPx, roundR);
+            var roundnessPercent = coverCameraPlate ? 90 : ci == 0 ? mainRoundR : 45;
+            var test = BuildRoundedExclusion(clusters[ci], w, padPx, roundnessPercent);
             for (var y = 0; y < h; y++)
             {
                 for (var x = 0; x < w; x++)

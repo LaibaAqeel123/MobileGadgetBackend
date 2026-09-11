@@ -394,8 +394,16 @@ public static class Geometry2D
     /// <summary>Builds a padded, rounded exclusion test around a raw point cloud: fits the
     /// tightest rotated rectangle (not axis-aligned — an axis-aligned box around a rotated cluster
     /// wastes a lot of area and its 90deg corners look like a foreign sticker on a case that has
-    /// no square corners anywhere on it), then grows every edge outward evenly by `padPx`.</summary>
-    public static RoundedQuadTest BuildRoundedExclusion(List<int> members, int w, double padPx, double roundR)
+    /// no square corners anywhere on it), then grows every edge outward evenly by `padPx`.
+    ///
+    /// <paramref name="roundnessPercent"/> is a PERCENTAGE (0-100) of the padded shape's own
+    /// shorter side, not a raw pixel count — confirmed necessary after a real admin comparison
+    /// (4px vs 40px "roundness") came back visually identical: on a multi-thousand-pixel photo, a
+    /// module only ~300-400px across, a 40px difference is under 10% of its size and essentially
+    /// imperceptible. 100% now always means "fully rounded" (a stadium/pill shape on the short
+    /// axis) and 0% always means "sharp rectangle," regardless of the source photo's
+    /// resolution.</summary>
+    public static RoundedQuadTest BuildRoundedExclusion(List<int> members, int w, double padPx, double roundnessPercent)
     {
         var hull = ConvexHull(members.Select(idx => new Point2(idx % w, idx / w)).ToList());
         var (c0, c1, c2, c3) = MinAreaRect(hull);
@@ -417,6 +425,12 @@ public static class Geometry2D
         var expanded = edgeLines.Select(l => ExpandLineOutward(l, centroid, padPx)).ToArray();
         var padded = new Point2[4];
         for (var i = 0; i < 4; i++) padded[i] = LineIntersect(expanded[(i + 3) % 4], expanded[i]);
-        return new RoundedQuadTest(padded, roundR);
+
+        var sideA = Math.Sqrt(Math.Pow(padded[1].X - padded[0].X, 2) + Math.Pow(padded[1].Y - padded[0].Y, 2));
+        var sideB = Math.Sqrt(Math.Pow(padded[3].X - padded[0].X, 2) + Math.Pow(padded[3].Y - padded[0].Y, 2));
+        var shorterSide = Math.Min(sideA, sideB);
+        var roundRpx = Math.Clamp(roundnessPercent, 0, 100) / 100.0 * (shorterSide / 2);
+
+        return new RoundedQuadTest(padded, roundRpx);
     }
 }
