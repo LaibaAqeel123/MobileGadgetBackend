@@ -27,14 +27,18 @@ public class TiltedDetectionService : ITiltedDetectionService
     /// backdrop and a light case, giving a wide safe margin either side of 70-80.</summary>
     private const double BrightnessThreshold = 75;
 
-    /// <summary>How far past the detected brightness edge to grow the traced case outline.
-    /// Confirmed on a real photo: without this, a thin sliver of the real (unprinted) case color
-    /// shows just outside the design, because a threshold-based edge always lands a couple px
-    /// inside the true physical edge (anti-aliasing blends case color toward the background before
-    /// a pixel reads as fully "dark"). TiltedHeroImageRenderer's silhouette backstop is what makes
-    /// this safe to be a little generous with — any overshoot past the REAL edge gets clamped back
-    /// at render time, so this only ever fixes undershoot, never causes overshoot.</summary>
-    private const double EdgeBleedPx = 4;
+    /// <summary>How far past the detected brightness edge to grow the traced case outline, as a
+    /// fraction of the case's own (rough) side length — NOT a fixed pixel count. Confirmed on a
+    /// real high-resolution photo (a large AI-generated mockup): without this, a thin sliver of the
+    /// real (unprinted) case color shows just outside the design along one whole edge, because a
+    /// threshold-based edge always lands a little inside the true physical edge (anti-aliasing
+    /// blends case color toward the background before a pixel reads as fully "dark") and a fixed
+    /// small pixel bleed is imperceptible once the case itself is thousands of pixels across —
+    /// exactly the same lesson as the camera-area margin/roundness fix. TiltedHeroImageRenderer's
+    /// silhouette backstop is what makes this safe to be a little generous with — any overshoot
+    /// past the REAL edge gets clamped back at render time, so this only ever fixes undershoot,
+    /// never causes overshoot.</summary>
+    private const double EdgeBleedFraction = 0.006;
 
     /// <summary>Minimum pixel count for a dark-enclosed region to be considered a real hole
     /// (lens/flash/mic) rather than noise (a dust speck, a stray specular catch-light) — confirmed
@@ -178,7 +182,11 @@ public class TiltedDetectionService : ITiltedDetectionService
         for (var i = 0; i < 4; i++) rawCorners[i] = LineIntersect(sideLines[(i + 3) % 4], sideLines[i]);
         var rawCentroid = new Point2(rawCorners.Average(p => p.X), rawCorners.Average(p => p.Y));
 
-        var expanded = sideLines.Select(l => ExpandLineOutward(l, rawCentroid, EdgeBleedPx)).ToArray();
+        var avgSidePx = Enumerable.Range(0, 4)
+            .Average(i => Math.Sqrt(Math.Pow(rawCorners[(i + 1) % 4].X - rawCorners[i].X, 2) + Math.Pow(rawCorners[(i + 1) % 4].Y - rawCorners[i].Y, 2)));
+        var edgeBleedPx = avgSidePx * EdgeBleedFraction;
+
+        var expanded = sideLines.Select(l => ExpandLineOutward(l, rawCentroid, edgeBleedPx)).ToArray();
         var refined = new Point2[4];
         for (var i = 0; i < 4; i++) refined[i] = LineIntersect(expanded[(i + 3) % 4], expanded[i]);
 
