@@ -394,16 +394,22 @@ public static class Geometry2D
     /// <summary>Builds a padded, rounded exclusion test around a raw point cloud: fits the
     /// tightest rotated rectangle (not axis-aligned — an axis-aligned box around a rotated cluster
     /// wastes a lot of area and its 90deg corners look like a foreign sticker on a case that has
-    /// no square corners anywhere on it), then grows every edge outward evenly by `padPx`.
+    /// no square corners anywhere on it), then grows every edge outward evenly by a margin.
     ///
-    /// <paramref name="roundnessPercent"/> is a PERCENTAGE (0-100) of the padded shape's own
-    /// shorter side, not a raw pixel count — confirmed necessary after a real admin comparison
-    /// (4px vs 40px "roundness") came back visually identical: on a multi-thousand-pixel photo, a
-    /// module only ~300-400px across, a 40px difference is under 10% of its size and essentially
-    /// imperceptible. 100% now always means "fully rounded" (a stadium/pill shape on the short
-    /// axis) and 0% always means "sharp rectangle," regardless of the source photo's
-    /// resolution.</summary>
-    public static RoundedQuadTest BuildRoundedExclusion(List<int> members, int w, double padPx, double roundnessPercent)
+    /// <paramref name="roundnessPercent"/> is a PERCENTAGE (0-100) of the PADDED shape's own
+    /// shorter side — confirmed necessary by direct A/B comparison: a fixed pixel value was
+    /// imperceptible on a multi-thousand-pixel photo where the module itself is only ~300-400px
+    /// across. 100 = fully rounded (a stadium/pill shape on the short axis), 0 = sharp rectangle.
+    ///
+    /// <paramref name="marginPx"/> is a PLAIN pixel value, deliberately NOT derived from this
+    /// shape's own bounding box (that was tried and reverted: it scales wrong the moment a cluster
+    /// is WIDE rather than compact — e.g. 3 spread-apart lenses vs. a tight triangle of the same
+    /// size — because bounding-box size reflects how far apart the components sit, not how big any
+    /// one of them is; confirmed by a real regression where margin ballooned to eat a large chunk
+    /// of the case on a wide layout). Callers should derive marginPx from a single component's own
+    /// size (see TiltedDetectionService.BuildCameraHoleMask), which stays representative regardless
+    /// of how the components are arranged.</summary>
+    public static RoundedQuadTest BuildRoundedExclusion(List<int> members, int w, double marginPx, double roundnessPercent)
     {
         var hull = ConvexHull(members.Select(idx => new Point2(idx % w, idx / w)).ToList());
         var (c0, c1, c2, c3) = MinAreaRect(hull);
@@ -411,6 +417,8 @@ public static class Geometry2D
         var cx = corners.Average(c => c.X);
         var cy = corners.Average(c => c.Y);
         var centroid = new Point2(cx, cy);
+
+        var padPx = marginPx;
 
         var edgeLines = new Line2[4];
         for (var s = 0; s < 4; s++)

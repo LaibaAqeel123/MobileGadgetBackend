@@ -103,7 +103,7 @@ public class HeroModelService : IHeroModelService
         var baseImageUrl = await _imageStorage.SaveImageAsync(photoBuffer, "tilted-base.png");
         photoBuffer.Position = 0;
 
-        var result = await _tiltedDetection.DetectAsync(photoBuffer, cameraRoundR ?? 25, cameraPadPx ?? 20, coverCameraPlate);
+        var result = await _tiltedDetection.DetectAsync(photoBuffer, cameraRoundR ?? 25, cameraPadPx ?? 15, coverCameraPlate);
 
         await using var silhouetteStream = new MemoryStream(result.SilhouettePng);
         await using var cameraMaskStream = new MemoryStream(result.CameraMaskPng);

@@ -47,7 +47,7 @@ public class TiltedDetectionService : ITiltedDetectionService
     private const double MinPlausibleBodyAreaFrac = 0.03;
 
     public async Task<TiltedDetectionResult> DetectAsync(
-        Stream basePhoto, double cameraRoundR = 25, double cameraPadPx = 20, bool coverCameraPlate = false)
+        Stream basePhoto, double cameraRoundR = 25, double cameraPadPx = 15, bool coverCameraPlate = false)
     {
         var full = await RgbaImage.LoadAsync(basePhoto);
         int w = full.Width, h = full.Height;
@@ -197,7 +197,7 @@ public class TiltedDetectionService : ITiltedDetectionService
     /// excluded (each with its own small, tight margin), and the design flows across the rest of
     /// the plate exactly like the rest of the body.</summary>
     private static (RgbaImage Mask, List<List<int>> Clusters) BuildCameraHoleMask(
-        double[] lum, int w, int h, double mainRoundR, double mainPadPx, bool coverCameraPlate)
+        double[] lum, int w, int h, double mainRoundR, double mainMarginPercent, bool coverCameraPlate)
     {
         var dark = new byte[w * h];
         for (var i = 0; i < w * h; i++) dark[i] = (byte)(lum[i] < BrightnessThreshold ? 1 : 0);
@@ -210,15 +210,28 @@ public class TiltedDetectionService : ITiltedDetectionService
         // of merging into one big plate shape -- same components, just not clustered together.
         var clusters = coverCameraPlate ? components : ClusterCompactComponents(components, w);
 
+        // Reference size for scaling margin: the MEDIAN individual component's own bbox diagonal
+        // -- deliberately not the cluster's own bounding box (see BuildRoundedExclusion's own
+        // note on why that regressed). A single lens is a stable, representative "how big is one
+        // real feature here" measure regardless of how spread out the whole cluster is; median
+        // (not mean) keeps one outlier -- the tiny mic-hole dot next to full-size lenses -- from
+        // skewing it.
+        var componentSizes = components
+            .Select(c => { var b = ComputeBbox(c, w); return Math.Sqrt(b.Width * (double)b.Width + b.Height * (double)b.Height); })
+            .OrderBy(s => s).ToList();
+        var refSizePx = componentSizes.Count > 0 ? componentSizes[componentSizes.Count / 2] : 40;
+
         var mask = new RgbaImage(w, h);
         for (var ci = 0; ci < clusters.Count; ci++)
         {
-            // roundness is a PERCENT of the shape's own shorter side (see BuildRoundedExclusion) —
-            // a tight individual lens/flash hole is close to circular, so it wants a HIGH percent
-            // (near 100, i.e. "fully rounded") even though its pad is small in pixels.
-            var padPx = coverCameraPlate ? 6 : ci == 0 ? mainPadPx : 12;
+            // Roundness is a PERCENT of the shape's own size (see BuildRoundedExclusion) -- a
+            // tight individual lens/flash hole is close to circular, so it wants a HIGH roundness
+            // percent (near 100, "fully rounded"). Margin is plain pixels, derived from refSizePx
+            // (a stand-in for "how big is one real feature in this photo") rather than any
+            // per-shape measurement.
+            var marginPx = coverCameraPlate ? refSizePx * 0.15 : (ci == 0 ? refSizePx * mainMarginPercent / 100.0 : refSizePx * 0.4);
             var roundnessPercent = coverCameraPlate ? 90 : ci == 0 ? mainRoundR : 45;
-            var test = BuildRoundedExclusion(clusters[ci], w, padPx, roundnessPercent);
+            var test = BuildRoundedExclusion(clusters[ci], w, marginPx, roundnessPercent);
             for (var y = 0; y < h; y++)
             {
                 for (var x = 0; x < w; x++)
