@@ -134,7 +134,8 @@ public class HeroModelService : IHeroModelService
         var quad = JsonSerializer.Deserialize<TiltedQuad>(preview.DesignQuadJson);
         var bbox = JsonSerializer.Deserialize<TiltedBbox>(preview.CaseBboxJson);
 
-        return await _tiltedRenderer.RenderAsync(baseStream, silhouetteStream, cameraMaskStream, overlayStream, sampleDesign, quad, bbox);
+        return await _tiltedRenderer.RenderAsync(
+            baseStream, silhouetteStream, cameraMaskStream, overlayStream, sampleDesign, quad, bbox, preview.CameraSpotsJson);
     }
 
     public async Task<string> BakeCameraMaskAsync(string baseImageUrl, string cameraOutlinePointsJson, string cameraSpotsJson)

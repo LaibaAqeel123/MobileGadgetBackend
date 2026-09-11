@@ -24,6 +24,7 @@ public class TiltedHeroImageRenderer : ITiltedHeroImageRenderer
         Stream design,
         TiltedQuad designQuad,
         TiltedBbox caseBbox,
+        string cameraSpotsJson,
         Stream? swapBackground = null)
     {
         var baseImg = await RgbaImage.LoadAsync(basePhoto);
@@ -33,6 +34,10 @@ public class TiltedHeroImageRenderer : ITiltedHeroImageRenderer
         var silhouetteImg = (await RgbaImage.LoadAsync(silhouetteMask)).ResizeExact(w, h);
         var cameraMaskImg = (await RgbaImage.LoadAsync(cameraMask)).ResizeExact(w, h);
         var overlayImg = (await RgbaImage.LoadAsync(overlay)).ResizeExact(w, h);
+
+        var allowSpots = (string.IsNullOrWhiteSpace(cameraSpotsJson)
+                ? null : System.Text.Json.JsonSerializer.Deserialize<List<CameraSpot>>(cameraSpotsJson))
+            ?.Where(s => !s.Protect).ToList() ?? [];
 
         // Combine as hard/boolean masks FIRST, then blur the COMBINED result exactly once. Two
         // independently soft-edged masks (the silhouette's own antialiased edge and the camera
@@ -45,6 +50,29 @@ public class TiltedHeroImageRenderer : ITiltedHeroImageRenderer
         {
             silhouetteHard[i] = (byte)(silhouetteImg.R(i) >= 128 ? 1 : 0);
             holeHard[i] = (byte)(cameraMaskImg.R(i) >= 128 ? 1 : 0);
+        }
+
+        // Allow spots are an admin's explicit override, anywhere on the case: force this area onto
+        // the silhouette and clear any exclusion, regardless of what auto-detection found here.
+        foreach (var spot in allowSpots)
+        {
+            var r2 = spot.Radius * spot.Radius;
+            var x0 = Math.Max(0, (int)Math.Floor(spot.X - spot.Radius));
+            var x1 = Math.Min(w - 1, (int)Math.Ceiling(spot.X + spot.Radius));
+            var y0 = Math.Max(0, (int)Math.Floor(spot.Y - spot.Radius));
+            var y1 = Math.Min(h - 1, (int)Math.Ceiling(spot.Y + spot.Radius));
+            for (var y = y0; y <= y1; y++)
+            {
+                for (var x = x0; x <= x1; x++)
+                {
+                    var dx = x - spot.X;
+                    var dy = y - spot.Y;
+                    if (dx * dx + dy * dy > r2) continue;
+                    var i = y * w + x;
+                    silhouetteHard[i] = 1;
+                    holeHard[i] = 0;
+                }
+            }
         }
 
         var printableHard = new byte[w * h];
@@ -78,6 +106,12 @@ public class TiltedHeroImageRenderer : ITiltedHeroImageRenderer
             var idx = i * 4 + 3;
             designLayer.Data[idx] = Math.Min(designLayer.Data[idx], (byte)Math.Round(printableSoft.R(i) / 255.0 * 255));
         }
+
+        // An Allow spot can sit outside the quad's own warped footprint entirely (e.g. right at the
+        // case's outer edge) — the clamp above can only ever SUBTRACT alpha, so a spot like that
+        // would otherwise stay empty even though it's now marked printable. Extend the nearest
+        // already-painted design pixels into it, strictly bounded to that one spot's own area.
+        foreach (var spot in allowSpots) FillMissingDesignAlpha(designLayer, spot, w, h);
 
         PixelOps.OverlayBlendColorOnly(designLayer, overlayImg);
 
@@ -152,6 +186,69 @@ public class TiltedHeroImageRenderer : ITiltedHeroImageRenderer
         PixelOps.ApplyFilmGrain(backdrop, amplitude: 10, new Random());
 
         return await backdrop.ToPngBytesAsync();
+    }
+
+    /// <summary>Multi-source nearest-color fill: within a small box around one Allow spot, spreads
+    /// the design layer's nearest already-painted pixel into every currently-empty pixel inside the
+    /// spot's own circle. Seeds are every already-painted pixel in the padded box (not just the
+    /// spot itself), so a spot that's entirely empty still finds real design content just outside
+    /// it to extend inward. Strictly local to this one spot — can never affect anything the admin
+    /// didn't explicitly mark.</summary>
+    private static void FillMissingDesignAlpha(RgbaImage designLayer, CameraSpot spot, int w, int h)
+    {
+        var pad = spot.Radius;
+        var x0 = Math.Max(0, (int)Math.Floor(spot.X - spot.Radius - pad));
+        var x1 = Math.Min(w - 1, (int)Math.Ceiling(spot.X + spot.Radius + pad));
+        var y0 = Math.Max(0, (int)Math.Floor(spot.Y - spot.Radius - pad));
+        var y1 = Math.Min(h - 1, (int)Math.Ceiling(spot.Y + spot.Radius + pad));
+        var bw = x1 - x0 + 1;
+        var bh = y1 - y0 + 1;
+        if (bw <= 0 || bh <= 0) return;
+
+        var r2 = spot.Radius * spot.Radius;
+        var color = new byte[bw * bh * 4];
+        var visited = new bool[bw * bh];
+        var queue = new Queue<(int x, int y)>();
+
+        for (var y = y0; y <= y1; y++)
+        {
+            for (var x = x0; x <= x1; x++)
+            {
+                var srcIdx = (y * w + x) * 4;
+                if (designLayer.Data[srcIdx + 3] == 0) continue;
+                var bi = (y - y0) * bw + (x - x0);
+                visited[bi] = true;
+                Array.Copy(designLayer.Data, srcIdx, color, bi * 4, 4);
+                queue.Enqueue((x, y));
+            }
+        }
+        if (queue.Count == 0) return; // nothing nearby to extend from — leave it as-is
+
+        (int dx, int dy)[] neighbors = [(-1, 0), (1, 0), (0, -1), (0, 1)];
+        while (queue.Count > 0)
+        {
+            var (cx, cy) = queue.Dequeue();
+            var cbi = (cy - y0) * bw + (cx - x0);
+            foreach (var (ddx, ddy) in neighbors)
+            {
+                var nx = cx + ddx;
+                var ny = cy + ddy;
+                if (nx < x0 || nx > x1 || ny < y0 || ny > y1) continue;
+                var nbi = (ny - y0) * bw + (nx - x0);
+                if (visited[nbi]) continue;
+                visited[nbi] = true;
+                Array.Copy(color, cbi * 4, color, nbi * 4, 4);
+
+                var ddx2 = nx - spot.X;
+                var ddy2 = ny - spot.Y;
+                if (ddx2 * ddx2 + ddy2 * ddy2 <= r2)
+                {
+                    var dstIdx = (ny * w + nx) * 4;
+                    Array.Copy(color, nbi * 4, designLayer.Data, dstIdx, 4);
+                }
+                queue.Enqueue((nx, ny));
+            }
+        }
     }
 
     private static RgbaImage ToGrayImage(byte[] binaryMask, int w, int h)

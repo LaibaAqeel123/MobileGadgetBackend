@@ -164,7 +164,7 @@ public class HeroGenerationService : IHeroGenerationService
 
         var png = await _tiltedRenderer.RenderAsync(
             baseStream, silhouetteStream, cameraMaskStream, overlayStream, designBuffer,
-            quad, bbox, swapBackground);
+            quad, bbox, model.CameraSpotsJson ?? "[]", swapBackground);
 
         return (png, scene);
     }
