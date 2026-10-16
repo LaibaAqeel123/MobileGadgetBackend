@@ -9,5 +9,9 @@ public class HeroModelDto
     public string DesignMaskImageUrl { get; set; } = string.Empty;
     public string CameraMaskImageUrl { get; set; } = string.Empty;
     public string OverlayImageUrl { get; set; } = string.Empty;
+    public string? GlbUrl { get; set; }
+    public string? PrintMaterialName { get; set; }
+    public string? PrintLayoutJson { get; set; }
+    public string? ValidationReportJson { get; set; }
     public DateTime CreatedAt { get; set; }
 }

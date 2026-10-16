@@ -86,12 +86,24 @@ namespace MobileGadgets.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("GlbUrl")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("OverlayImageUrl")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("PhoneName")
                         .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PrintLayoutJson")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PrintMaterialName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ValidationReportJson")
                         .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
