@@ -26,6 +26,38 @@ public class HeroGenerationsController : ControllerBase
         return generation is null ? NotFound() : Ok(generation);
     }
 
+    /// <summary>Saves a picture the customer's browser rendered from a 3D model, together with the
+    /// design (and background photo, if any) they used, and returns the same record the 2D generator
+    /// does. The browser does the rendering; this only validates and stores.</summary>
+    [HttpPost("rendered")]
+    [RequestSizeLimit(80_000_000)]
+    public async Task<IActionResult> SaveRendered(
+        [FromForm] int heroModelId,
+        [FromForm] int? sceneId,
+        IFormFile design,
+        IFormFile output,
+        IFormFile? backgroundImage = null)
+    {
+        if (design.Length == 0 || output.Length == 0) return BadRequest(new { error = "The design and the finished picture are both required." });
+
+        try
+        {
+            await using var designStream = design.OpenReadStream();
+            await using var outputStream = output.OpenReadStream();
+            await using var backgroundStream = backgroundImage is { Length: > 0 } ? backgroundImage.OpenReadStream() : null;
+            var result = await _generationService.SaveRenderedAsync(heroModelId, designStream, outputStream, sceneId, backgroundStream);
+            return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { error = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
     [HttpPost]
     [RequestSizeLimit(50_000_000)]
     public async Task<IActionResult> Generate(
