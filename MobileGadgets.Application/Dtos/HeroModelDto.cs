@@ -16,5 +16,9 @@ public class HeroModelDto
     public string? CaseBboxJson { get; set; }
     public string? CameraOutlinePointsJson { get; set; }
     public string? CameraSpotsJson { get; set; }
+    public string? GlbUrl { get; set; }
+    public string? PrintMaterialName { get; set; }
+    public string? PrintLayoutJson { get; set; }
+    public string? ValidationReportJson { get; set; }
     public DateTime CreatedAt { get; set; }
 }

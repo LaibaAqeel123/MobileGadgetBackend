@@ -23,4 +23,11 @@ public class CreateHeroModelRequest
     /// Null/ignored for Straight.</summary>
     public string? CameraOutlinePointsJson { get; set; }
     public string? CameraSpotsJson { get; set; }
+
+    /// <summary>Model3D only — the values the 3D upload check (inspect-glb) returned, carried
+    /// through to save. Null/ignored for Straight and Tilted.</summary>
+    public string? GlbUrl { get; set; }
+    public string? PrintMaterialName { get; set; }
+    public string? PrintLayoutJson { get; set; }
+    public string? ValidationReportJson { get; set; }
 }

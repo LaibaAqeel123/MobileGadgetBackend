@@ -98,6 +98,9 @@ namespace MobileGadgets.Infrastructure.Migrations
                     b.Property<string>("DesignQuadJson")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("GlbUrl")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("OverlayImageUrl")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -108,6 +111,15 @@ namespace MobileGadgets.Infrastructure.Migrations
 
                     b.Property<int>("PoseType")
                         .HasColumnType("int");
+
+                    b.Property<string>("PrintLayoutJson")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PrintMaterialName")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ValidationReportJson")
+                        .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
 

@@ -6,6 +6,7 @@ using MobileGadgets.Application.Interfaces;
 using MobileGadgets.Application.Services;
 using MobileGadgets.Domain;
 using MobileGadgets.Infrastructure.Auth;
+using MobileGadgets.Infrastructure.Glb;
 using MobileGadgets.Infrastructure.Persistence;
 using MobileGadgets.Infrastructure.Rendering;
 using MobileGadgets.Infrastructure.Storage;
@@ -23,6 +24,7 @@ builder.Services.AddDbContext<MobileGadgetsDbContext>(options =>
 
 builder.Services.Configure<StorageSettings>(builder.Configuration.GetSection("StorageSettings"));
 builder.Services.AddScoped<IImageStorageService, LocalImageStorageService>();
+builder.Services.AddSingleton<IGlbInspector, GlbInspector>();
 builder.Services.AddScoped<IHeroModelRepository, HeroModelRepository>();
 builder.Services.AddScoped<IHeroModelService, HeroModelService>();
 builder.Services.AddScoped<IHeroImageRenderer, HeroImageRenderer>();
@@ -151,7 +153,11 @@ app.UseHttpsRedirection();
 
 app.UseCors(CorsPolicy);
 
-app.UseStaticFiles();
+// ASP.NET's static file server only serves file types it knows; .glb is not one of them, so without
+// this every uploaded 3D model would come back 404.
+var contentTypes = new Microsoft.AspNetCore.StaticFiles.FileExtensionContentTypeProvider();
+contentTypes.Mappings[".glb"] = "model/gltf-binary";
+app.UseStaticFiles(new StaticFileOptions { ContentTypeProvider = contentTypes });
 
 app.UseAuthentication();
 app.UseAuthorization();

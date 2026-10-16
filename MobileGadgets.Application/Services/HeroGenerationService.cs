@@ -42,6 +42,99 @@ public class HeroGenerationService : IHeroGenerationService
         return generation is null ? null : ToDto(generation);
     }
 
+    // A finished 3D picture is 2048x2048; even a busy one stays far below this. The design is the
+    // customer's original file, so it gets more room.
+    private const int MaxRenderedBytes = 25_000_000;
+    private const int MaxUploadBytes = 40_000_000;
+
+    public async Task<HeroGenerationDto> SaveRenderedAsync(
+        int heroModelId, Stream design, Stream output, int? sceneId, Stream? customBackground = null)
+    {
+        var model = await _heroModelRepository.GetByIdAsync(heroModelId)
+            ?? throw new KeyNotFoundException($"HeroModel {heroModelId} not found.");
+        if (model.PoseType != HeroModelPoseType.Model3D)
+            throw new InvalidOperationException("Only 3D models are saved this way; other models are rendered on the server.");
+
+        var scene = sceneId is null
+            ? await _sceneRepository.GetDefaultAsync()
+            : await _sceneRepository.GetByIdAsync(sceneId.Value) ?? throw new KeyNotFoundException($"Scene {sceneId} not found.");
+
+        // Check everything before storing anything, so a bad upload leaves no files behind.
+        var designImage = await ReadImageAsync(design, "design", MaxUploadBytes, pngOnly: false);
+        var outputImage = await ReadImageAsync(output, "finished picture", MaxRenderedBytes, pngOnly: true);
+        (byte[] Data, string Extension)? backgroundImage = null;
+        if (customBackground is not null)
+            backgroundImage = await ReadImageAsync(customBackground, "background", MaxUploadBytes, pngOnly: false);
+
+        var stored = new List<string>();
+        try
+        {
+            var designUrl = await StoreAsync(designImage, "design", stored);
+            var backgroundUrl = backgroundImage is null ? null : await StoreAsync(backgroundImage.Value, "background", stored);
+            var outputUrl = await StoreAsync(outputImage, "hero", stored);
+
+            var generation = new HeroGeneration
+            {
+                HeroModelId = heroModelId,
+                SceneId = scene.Id,
+                DesignImageUrl = designUrl,
+                CustomBackgroundImageUrl = backgroundUrl,
+                OutputImageUrl = outputUrl,
+                CreatedAt = DateTime.UtcNow,
+            };
+            await _generationRepository.AddAsync(generation);
+            await _generationRepository.SaveChangesAsync();
+            return ToDto(generation);
+        }
+        catch
+        {
+            // Do not leave files that no record points at.
+            foreach (var url in stored) _imageStorage.DeleteFile(url);
+            throw;
+        }
+    }
+
+    private async Task<string> StoreAsync((byte[] Data, string Extension) image, string name, List<string> stored)
+    {
+        await using var stream = new MemoryStream(image.Data);
+        var url = await _imageStorage.SaveImageAsync(stream, name + image.Extension);
+        stored.Add(url);
+        return url;
+    }
+
+    /// <summary>Reads an upload fully (up to a size limit) and works out what it really is from its
+    /// first bytes. Only PNG, JPEG, WebP and GIF are accepted; the returned extension comes from the
+    /// content, so a file called "x.html" or "x.png" cannot be stored as something it is not.</summary>
+    private static async Task<(byte[] Data, string Extension)> ReadImageAsync(Stream stream, string what, int maxBytes, bool pngOnly)
+    {
+        var buffer = new MemoryStream();
+        var chunk = new byte[81920];
+        int read;
+        while ((read = await stream.ReadAsync(chunk)) > 0)
+        {
+            buffer.Write(chunk, 0, read);
+            if (buffer.Length > maxBytes)
+                throw new InvalidOperationException($"The {what} is too large (limit {maxBytes / 1_000_000} MB).");
+        }
+
+        var data = buffer.ToArray();
+        var extension = DetectImageExtension(data);
+        if (extension is null)
+            throw new InvalidOperationException($"The {what} is not a supported image (use PNG, JPEG or WebP).");
+        if (pngOnly && extension != ".png")
+            throw new InvalidOperationException($"The {what} must be a PNG.");
+        return (data, extension);
+    }
+
+    private static string? DetectImageExtension(byte[] d)
+    {
+        if (d.Length >= 8 && d[0] == 0x89 && d[1] == 0x50 && d[2] == 0x4E && d[3] == 0x47 && d[4] == 0x0D && d[5] == 0x0A && d[6] == 0x1A && d[7] == 0x0A) return ".png";
+        if (d.Length >= 3 && d[0] == 0xFF && d[1] == 0xD8 && d[2] == 0xFF) return ".jpg";
+        if (d.Length >= 12 && d[0] == 'R' && d[1] == 'I' && d[2] == 'F' && d[3] == 'F' && d[8] == 'W' && d[9] == 'E' && d[10] == 'B' && d[11] == 'P') return ".webp";
+        if (d.Length >= 6 && d[0] == 'G' && d[1] == 'I' && d[2] == 'F' && d[3] == '8') return ".gif";
+        return null;
+    }
+
     // A wider turn was tried during development and rejected — it exposed a shadow/base gap at
     // the phone's far bottom corner. +/-12 degrees stays well inside the range confirmed clean.
     private const double MaxYawDegrees = 12;
@@ -57,6 +150,11 @@ public class HeroGenerationService : IHeroGenerationService
     {
         var model = await _heroModelRepository.GetByIdAsync(heroModelId)
             ?? throw new KeyNotFoundException($"HeroModel {heroModelId} not found.");
+
+        // A 3D model has no photos for this server-side renderer to work from: it is rendered in the
+        // customer's browser from its .glb. Refuse clearly instead of failing on its empty image fields.
+        if (model.PoseType == HeroModelPoseType.Model3D)
+            throw new InvalidOperationException("3D models are rendered in the browser, not by this endpoint.");
 
         // Buffer the design once so it can be saved permanently AND fed to the renderer.
         var designBuffer = new MemoryStream();

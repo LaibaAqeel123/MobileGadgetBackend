@@ -46,5 +46,25 @@ public class HeroModel
     /// Serialized List&lt;CameraSpot&gt;. Null/empty for Straight or when none are placed.</summary>
     public string? CameraSpotsJson { get; set; }
 
+    /// <summary>Model3D only: public URL of the uploaded .glb file (the phone wearing its case).
+    /// Null for Straight/Tilted.</summary>
+    public string? GlbUrl { get; set; }
+
+    /// <summary>Model3D only: name of the material inside the .glb that the customer's design is
+    /// printed onto (normally "PRINT_AREA"; the admin can pick another one when the file was made
+    /// without that name). Null for Straight/Tilted.</summary>
+    public string? PrintMaterialName { get; set; }
+
+    /// <summary>Model3D only: where the printable surface's UV layout sits inside the 0..1 texture
+    /// square, as JSON {"u0":..,"u1":..,"v0":..,"v1":..}. The customer's design is cover-fit into
+    /// exactly this rectangle, and the crop editor takes its aspect ratio from it. Measured from the
+    /// file at upload time, never typed in by hand. Null for Straight/Tilted.</summary>
+    public string? PrintLayoutJson { get; set; }
+
+    /// <summary>Model3D only: the validation report from the upload check (see GlbInspectionReport),
+    /// kept so the admin can see later why a model was accepted and what it warned about. Null for
+    /// Straight/Tilted.</summary>
+    public string? ValidationReportJson { get; set; }
+
     public DateTime CreatedAt { get; set; }
 }

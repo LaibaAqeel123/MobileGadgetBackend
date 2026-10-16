@@ -24,4 +24,19 @@ public interface IHeroGenerationService
         Stream? customBackground = null,
         string? customBackgroundFileName = null,
         double? yawDegrees = null);
+
+    /// <summary>Records a picture a customer's browser rendered from a 3D model (Model3D): stores the
+    /// finished PNG, the design they used, and any background photo they uploaded, and saves a
+    /// HeroGeneration pointing at them — so a 3D picture has the same permanent link and history entry
+    /// as a server-rendered one. Nothing is rendered here. sceneId null records the default Scene (the
+    /// column is required; a 3D render does not use a Scene's pose). Every upload must really be an
+    /// image, and the stored file's extension is decided from its content, never from the client's
+    /// file name. Throws KeyNotFoundException if the model or scene does not exist, and
+    /// InvalidOperationException if the model is not a 3D model or an upload is not an acceptable image.</summary>
+    Task<HeroGenerationDto> SaveRenderedAsync(
+        int heroModelId,
+        Stream design,
+        Stream output,
+        int? sceneId,
+        Stream? customBackground = null);
 }
