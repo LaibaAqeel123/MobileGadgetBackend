@@ -58,6 +58,11 @@ public class HeroGenerationService : IHeroGenerationService
         var model = await _heroModelRepository.GetByIdAsync(heroModelId)
             ?? throw new KeyNotFoundException($"HeroModel {heroModelId} not found.");
 
+        // A 3D model has no photos for this server-side renderer to work from: it is rendered in the
+        // customer's browser from its .glb. Refuse clearly instead of failing on its empty image fields.
+        if (model.PoseType == HeroModelPoseType.Model3D)
+            throw new InvalidOperationException("3D models are rendered in the browser, not by this endpoint.");
+
         // Buffer the design once so it can be saved permanently AND fed to the renderer.
         var designBuffer = new MemoryStream();
         await designContent.CopyToAsync(designBuffer);

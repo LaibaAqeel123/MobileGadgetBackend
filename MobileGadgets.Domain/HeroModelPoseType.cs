@@ -9,4 +9,10 @@ public enum HeroModelPoseType
 {
     Straight,
     Tilted,
+
+    /// <summary>A real 3D model (a .glb of the phone wearing its case). Not photographed at all:
+    /// the browser renders it from any angle and prints the customer's design onto the model's
+    /// printable material (see HeroModel.GlbUrl / PrintMaterialName). None of the 2D image fields
+    /// on HeroModel are used.</summary>
+    Model3D,
 }
