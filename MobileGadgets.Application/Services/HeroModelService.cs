@@ -191,8 +191,12 @@ public class HeroModelService : IHeroModelService
         model.GlbUrl = glbUrl;
         model.PrintMaterialName = report.PrintMaterialName;
         model.PrintLayoutJson = LayoutJson(report);
-        model.ValidationReportJson = JsonSerializer.Serialize(report);
+        model.ValidationReportJson = JsonSerializer.Serialize(report, ReportJsonOptions);
     }
+
+    // camelCase, the same as every API response, so the admin page can read a stored report exactly
+    // like a fresh one
+    private static readonly JsonSerializerOptions ReportJsonOptions = new(JsonSerializerDefaults.Web);
 
     private static GlbUploadResultDto ToUploadResult(string url, GlbInspectionReport report) => new()
     {
